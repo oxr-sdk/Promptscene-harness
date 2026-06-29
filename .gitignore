@@ -1,0 +1,16 @@
+# Unity project — has its own git repo (oxr-sdk/XRCollabDemo)
+/XRCollabDemo/
+
+# Huge import log (161MB)
+/xrcollab_import.log
+
+# Scratch / temp
+/scratch/
+/tmp_*.txt
+
+# Vendored Node.js toolchain under docs (regeneratable, large)
+/docs/.tools/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
