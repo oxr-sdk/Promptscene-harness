@@ -12,6 +12,8 @@ README §6 **Server** 경로 = 두 개의 헤드리스 서버 실행파일:
 
 스택: MasterServerToolkit(MST) + FishNet + XumNet. 빌드 도구: **Xum Build Kit**의 `XumLobbyServerBuilderWindow`.
 
+> 이 문서는 **서버(.exe)** 전용입니다. **실기기(Meta Quest) 클라이언트 APK** 빌드/배포(adb)는 `build-meta-client.md` 참고. (클라 빌드는 `extraScriptingDefines`가 도메인 리로드를 유발하는 등 별도 함정이 있음 — 서버 빌드가 되는 이유는 해당 디파인이 이미 활성이라 재컴파일이 없기 때문.)
+
 ---
 
 ## 1. 사전 조건 — 프로젝트 1회성 수정 (이거 안 하면 컴파일/빌드 자체가 안 됨)

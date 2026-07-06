@@ -3,6 +3,7 @@
 > 목적: **이 문서 하나만 읽고** XRCollabDemo에서 **실제로 입장·아바타 스폰·이동이 되는 ROOM 씬**을 처음부터 조립한다.
 > 기존 출처(패키지 README, https://oxr-platform.gitbook.io/oxr-platform-docs)는 "룸 레시피"는 주지만 **플레이어 스포너 구성과 작동 불변식(C1~C4)이 빠져 있어 그대로 따라하면 안 돈다.** 이 문서가 그 빈틈을 채운 "되는 문서"다.
 > 검증 기반: DocRoom(이 절차로 만든 작동 룸) + 빌드/런타임 검증(`build-xumlobby-server.md`) + 계약(`promptscene-content-contract.md`).
+> 관련: **서버(.exe)** 빌드 = `build-xumlobby-server.md` · **실기기(Meta Quest) 클라(APK)** 빌드·배포 = `build-meta-client.md`.
 
 ---
 
@@ -69,6 +70,7 @@
 
 ## 4. 환경 / 콘텐츠
 - ENVIRONMENT: 바닥(Plane, 콜라이더 필수 — 레이캐스트/이동), 벽, 조명, 카메라. (또는 기존 3D 모델 차용)
+  - ⚠️ **VR 클라 배포 시**: 룸 씬의 `Main Camera`(Camera+AudioListener)는 **비활성화 + 태그 Untagged**. 안 그러면 Quest에서 XR 리그 카메라와 충돌해 화면 깜빡임+고정. 에디터/데스크톱 검증엔 켜둬도 무방. ☞ `build-meta-client.md` §2.4-D
 - (선택) FEATURES: `RoomCore`(PromptScene.Core) + `RulerContent` 등 토글 콘텐츠. → `promptscene-content-contract.md`
 
 ---
@@ -105,3 +107,6 @@
 | 로비 UI가 룸 위를 덮음 | C3 `_offlineScene` 비어있음 |
 | "Failed to confirm the access"로 즉시 퇴장 | C2 스포너를 스크립트로 만들어 NetworkObject scene id 무효 → **프리팹으로 인스턴스화할 것** |
 | 아바타가 Client 씬에 스폰/룸 미로드 | 네트워크 씬 전환 미발동 (C3 online scene 미설정 or 빌드세팅 누락) |
+| (VR) 룸 입장 후 화면 깜빡임+시점 고정 | 룸 씬의 Main Camera가 XR 리그 카메라와 충돌 → 룸 Main Camera(Camera+AudioListener) 비활성+Untagged (build-meta-client.md §2.4-D) |
+| 에디터+Quest 동시 접속 시 "Room could not validate you" | 둘 다 게스트 로그인 → 게스트 아이디 충돌. 각 클라를 서로 다른 계정으로 (build-meta-client.md §7) |
+| (VR APK) 룸 입장 시 "Room could not validate you" + 씬 로드 실패 | 클라 빌드 SceneList에 룸 씬 누락 → FishNet이 이름으로 룸 씬 로드 불가. Client+룸 씬 모두 포함 (build-meta-client.md §2.4-C) |

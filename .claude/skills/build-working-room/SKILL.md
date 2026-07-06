@@ -39,6 +39,7 @@ seeing `Client N has become a player` with an owner avatar in the networked room
 ## Phase 1 — Assemble `<Room>.unity` (build-working-room.md §1–§5)
 
 1. `scene-create` at `Assets/App/Scenes/<Room>.unity`, `Single`, `DefaultGameObjects` (gives Main Camera + Directional Light = §4 camera/light).
+   - ⚠️ **For VR client (Quest) deploy**, this Main Camera must later be disabled (Camera+AudioListener) + untagged — it conflicts with the persistent XR rig camera (flicker/frozen view). Fine to keep enabled for the editor-client verification below. See `c:\J_0\docs\build-meta-client.md` §2.4-D.
 2. Instantiate the **4** R- prefabs via `assets-prefab-instantiate` (§1). **Do NOT** add `R-PlayerSpawner` (5th) — forbidden by C2.
 3. Instantiate `Assets/PromptScene/Prefabs/Room-PlayerSpawner.prefab` (§2, this is C2 — a prefab instance gets a valid scene id; a script-built NetworkObject would fail with "Failed to confirm the access").
 4. Apply invariants on **R-RoomServer**:

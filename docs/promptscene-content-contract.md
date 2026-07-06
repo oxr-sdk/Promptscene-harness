@@ -41,6 +41,7 @@
 - FEATURE 모듈은 `===== FEATURES =====` 아래에 통째로 들어오며, 빠지면 SYSTEMS에 참조가 0개 → 빌드/런타임 안 깨짐.
 - 횡단 작업(스케일 변경 시 정리 등)은 SYSTEMS가 레지스트리를 순회해 처리. 기능 추가 시 SYSTEMS 코드 수정 0.
 - ⚠️ FishNet **씬 네트워크 오브젝트**(R-RoomServer, --PLAYER_SPAWNER)를 재배치하면 씬오브젝트 ID가 바뀐다 → 네트워크 빌드(Room.exe) 재빌드 필요.
+- ⚠️ **VR 클라 주의**: `ENVIRONMENT`의 `Main Camera`는 데스크톱/에디터 검증용이다. **VR 클라(Quest)에선 유지되는 XR 리그 카메라와 충돌**해 화면 깜빡임+시점 고정을 유발한다("2 audio listeners" 경고 동반). 룸 씬의 Main Camera(Camera+AudioListener)를 **비활성화하고 태그를 Untagged**로 두면 `Camera.main`이 XR 리그로 잡힌다. ☞ `build-meta-client.md` §2.4-D
 
 ---
 
