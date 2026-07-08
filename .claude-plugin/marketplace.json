@@ -1,0 +1,24 @@
+{
+  "name": "promptscene-harness",
+  "owner": {
+    "name": "ahnjaeyeong",
+    "email": "y0ung0108@kisti.re.kr"
+  },
+  "description": "PromptScene — natural-language XR room synthesis & verification skills for XRCollabDemo",
+  "plugins": [
+    {
+      "name": "promptscene",
+      "source": "./",
+      "description": "자연어 프롬프트로 XR 룸을 합성·검증하는 스킬 묶음",
+      "version": "0.1.0",
+      "author": {
+        "name": "ahnjaeyeong",
+        "email": "y0ung0108@kisti.re.kr"
+      },
+      "homepage": "https://github.com/oxr-sdk/Promptscene-harness",
+      "repository": "https://github.com/oxr-sdk/Promptscene-harness",
+      "keywords": ["xr", "unity", "xrcollabdemo", "room", "networking", "promptscene"],
+      "category": "development"
+    }
+  ]
+}

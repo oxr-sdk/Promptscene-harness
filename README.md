@@ -17,11 +17,11 @@ A Claude Code plugin for **synthesizing and verifying rooms from natural-languag
 
 ### Step 1: Install the Plugin
 
-Official install:
+Official install (via the marketplace):
 
 ```
-/plugin marketplace add <repo path or git URL>
-/plugin install promptscene
+/plugin marketplace add oxr-sdk/Promptscene-harness
+/plugin install promptscene@promptscene-harness
 ```
 
 Dev / temporary load (this session only):
