@@ -1,19 +1,19 @@
 ---
-name: build-working-room
+name: assemble-room
 description: >
   Assemble a working PromptScene ROOM scene in XRCollabDemo from docs/build-working-room.md and
   LIVE-PROVE it end-to-end: apply the C1–C4 invariants, rebuild Room.exe with the new scene, run
   Master+Room servers, join from an editor client, and verify the §6.5 runtime signals
   (avatar spawns, lobby unloads, WASD-ready). Use when the user wants to scaffold a new room
   (e.g. "build a room called X", "assemble BasicRoom_N and prove it works") and confirm it actually runs.
-  Argument = the new room name (no extension), e.g. /build-working-room BasicRoom_3
+  Argument = the new room name (no extension), e.g. /assemble-room BasicRoom_3
 ---
 
 # Build a working ROOM and live-prove it
 
 This skill reproduces a verified, end-to-end run: assemble `<Room>.unity` purely from
-`c:\J_0\docs\build-working-room.md`, then build/run/verify per its §6 (build mechanics delegated to
-`c:\J_0\docs\build-xumlobby-server.md`). It was validated by building **BasicRoom_2** from scratch and
+`${CLAUDE_PLUGIN_ROOT}/docs/build-working-room.md`, then build/run/verify per its §6 (build mechanics delegated to
+`${CLAUDE_PLUGIN_ROOT}/docs/build-xumlobby-server.md`). It was validated by building **BasicRoom_2** from scratch and
 seeing `Client N has become a player` with an owner avatar in the networked room.
 
 **Argument:** `<Room>` = new room name without extension (default `BasicRoom_N`). Used everywhere below.
@@ -32,14 +32,14 @@ seeing `Client N has become a player` with an owner avatar in the networked room
 - Client scene (C3 offline): `Assets/App/Scenes/Client.unity`
 - Master scene (build): `Assets/App/Scenes/Master.unity`
 - Server build output: `c:\J_0\XRCollabDemo\Builds\App\Server\StandaloneWindows64\{MasterAndSpawner,Room}\`
-- Scene hierarchy convention: `c:\J_0\docs\promptscene-content-contract.md` §1 (also summarized in build-working-room.md §5). **You MUST build the room to this hierarchy, not flat.**
+- Scene hierarchy convention: `${CLAUDE_PLUGIN_ROOT}/docs/promptscene-content-contract.md` §1 (also summarized in build-working-room.md §5). **You MUST build the room to this hierarchy, not flat.**
 
 ---
 
 ## Phase 1 — Assemble `<Room>.unity` (build-working-room.md §1–§5)
 
 1. `scene-create` at `Assets/App/Scenes/<Room>.unity`, `Single`, `DefaultGameObjects` (gives Main Camera + Directional Light = §4 camera/light).
-   - ⚠️ **For VR client (Quest) deploy**, this Main Camera must later be disabled (Camera+AudioListener) + untagged — it conflicts with the persistent XR rig camera (flicker/frozen view). Fine to keep enabled for the editor-client verification below. See `c:\J_0\docs\build-meta-client.md` §2.4-D.
+   - ⚠️ **For VR client (Quest) deploy**, this Main Camera must later be disabled (Camera+AudioListener) + untagged — it conflicts with the persistent XR rig camera (flicker/frozen view). Fine to keep enabled for the editor-client verification below. See `${CLAUDE_PLUGIN_ROOT}/docs/build-meta-client.md` §2.4-D.
 2. Instantiate the **4** R- prefabs via `assets-prefab-instantiate` (§1). **Do NOT** add `R-PlayerSpawner` (5th) — forbidden by C2.
 3. Instantiate `Assets/PromptScene/Prefabs/Room-PlayerSpawner.prefab` (§2, this is C2 — a prefab instance gets a valid scene id; a script-built NetworkObject would fail with "Failed to confirm the access").
 4. Apply invariants on **R-RoomServer**:
@@ -57,12 +57,12 @@ seeing `Client N has become a player` with an owner avatar in the networked room
    ===== FEATURES =====       (empty in minimal room)
    ===== _DYNAMIC =====       (empty — runtime spawns land here)
    ```
-   ⚠️ **Never tag a folder parent that holds children with `EditorOnly`** — its children get excluded from the build (contract §1). Leave these parents untagged. Reparenting prefab-instantiated scene objects is safe (scene id stays valid on save); do it at edit time then save. Easiest done in one `script-execute` (create empties + reparent). See `assets/build_hierarchy.cs`.
+   ⚠️ **Never tag a folder parent that holds children with `EditorOnly`** — its children get excluded from the build (contract §1). Leave these parents untagged. Reparenting prefab-instantiated scene objects is safe (scene id stays valid on save); do it at edit time then save. Easiest done in one `script-execute` (create empties + reparent). See `${CLAUDE_PLUGIN_ROOT}/skills/assemble-room/assets/build_hierarchy.cs`.
 8. `scene-save`.
 9. Read back the saved values with a `script-execute` reflection check (private fields need reflection; the MCP field view often returns empty for base-class fields). Confirm: C1=DefaultPrefabObjects, C3 online/offline correct, offlineRoomScene=Client, spawner present with `[XumPlayerSpawner,XumSimpleSpawnServerExample,NetworkObject,XumNetwork]`, no `R-PlayerSpawner`, Floor has Collider, **and the 5 section headers exist with members reparented correctly**.
 10. §3 registration: add `Client.unity` + `<Room>.unity` to `EditorBuildSettings.scenes` (in the same script).
 
-See `assets/verify_scene.cs` for the reflection read-back + build-settings registration, and `assets/build_hierarchy.cs` for the hierarchy step (set `ROOM` in both).
+See `${CLAUDE_PLUGIN_ROOT}/skills/assemble-room/assets/verify_scene.cs` for the reflection read-back + build-settings registration, and `${CLAUDE_PLUGIN_ROOT}/skills/assemble-room/assets/build_hierarchy.cs` for the hierarchy step (set `ROOM` in both).
 
 ---
 
@@ -70,7 +70,7 @@ See `assets/verify_scene.cs` for the reflection read-back + build-settings regis
 
 - Drive `XumLobbyServerBuilderWindow` by reflection via `script-execute`. Set `SceneList` to `<Room>.unity`
   (this is the room content) and `MasterScene` to `Master.unity`, then call `BuildRoom`.
-- See `assets/build_room.cs` (set `ROOM`). Master is scene-independent — only rebuild it if the machine LAN IP changed
+- See `${CLAUDE_PLUGIN_ROOT}/skills/assemble-room/assets/build_room.cs` (set `ROOM`). Master is scene-independent — only rebuild it if the machine LAN IP changed
   (check: existing `MasterAndSpawner/application.cfg` `mstMasterIp` vs current `Get-NetIPAddress`). If it changed, also call `BuildMasterForWindows` and re-match the client serverIp.
 - **Success check (§3):** `Room/application.cfg` AND `Room/Room_Data/level0` + `globalgamemanagers` get a fresh
   `LastWriteTime` (the tiny `Room.exe` bootstrap may keep its old timestamp — check `level0`, not the exe).
@@ -81,7 +81,7 @@ See `assets/verify_scene.cs` for the reflection read-back + build-settings regis
 ## Phase 3 — Run servers (build-working-room.md §6.2, build-xumlobby-server.md §4)
 
 PowerShell: delete old logs, start `MasterAndSpawner.exe` (cwd = its folder, `-logFile master.log`), wait ~6s,
-start `Room.exe` (cwd = its folder, `-logFile room.log`). See `assets/run_servers.ps1`.
+start `Room.exe` (cwd = its folder, `-logFile room.log`). See `${CLAUDE_PLUGIN_ROOT}/skills/assemble-room/assets/run_servers.ps1`.
 
 Verify log signals:
 - `master.log`: `listening to: <IP>:5000`, `Successfully initialized modules`, `Spawner successfully created`
@@ -99,7 +99,7 @@ Verify log signals:
    If not, set it and `scene-save` (⚠️ in-memory change reverts on Play domain reload → must save).
 3. Enter Play: `script-execute` set `EditorApplication.isPlaying = true`. Wait ~12s for connect + guest auth
    (master.log shows a new `Peer [n] opened connection`).
-4. Drive matchmaking via the MST API in `script-execute` (see `assets/drive_matchmaking.cs`):
+4. Drive matchmaking via the MST API in `script-execute` (see `${CLAUDE_PLUGIN_ROOT}/skills/assemble-room/assets/drive_matchmaking.cs`):
    `Mst.Client.Auth` (SignInAsGuest if needed) → `Mst.Client.Matchmaker.FindGames(games => ...)` →
    find the `MatchmakingBehaviour` MonoBehaviour and invoke its `StartMatch(games[0])`.
    ⚠️ `GameInfoPacket` has **no** `Ip`/`Port` members — don't log them (use `Name/Id/Region/OnlinePlayers/MaxPlayers`).
@@ -108,7 +108,7 @@ Verify log signals:
 
 ## Phase 5 — Verify §6.5 (ALL four must pass)
 
-Read `room.log` and run an editor `script-execute` snapshot (see `assets/verify_client.cs`, writes results to a temp txt you Read):
+Read `room.log` and run an editor `script-execute` snapshot (see `${CLAUDE_PLUGIN_ROOT}/skills/assemble-room/assets/verify_client.cs`, writes results to a temp txt you Read):
 
 | # | Pass condition | Where |
 |---|---|---|

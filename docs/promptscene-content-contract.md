@@ -2,7 +2,7 @@
 
 > 목표: **XRCollabDemo에서 자연어 프롬프트로 룸을 합성하고, 잘 돌아가는지 구조적으로 검증.**
 > 룸 = **반드시 있어야 하는 SYSTEMS(Core)** + **있어도/없어도 되는 FEATURES(Content)**.
-> 이 문서는 스킬(`/promptscene`, `/RoomContent-*`)·런치패드·모든 콘텐츠 모듈이 공유하는 **단일 규격**이다.
+> 이 문서는 스킬(`/compose-room`, `/scaffold-content`)·런치패드·모든 콘텐츠 모듈이 공유하는 **단일 규격**이다.
 
 ---
 
@@ -110,8 +110,8 @@ namespace PromptScene.Core
 - **Phase 2** ✅ Ruler를 계약 위에 **클린 재구현**해 XRCollabDemo에 편입(파일럿). 자기등록·토글·측정 검증.
 - **Phase 2.5** ✅ 씬 계층 표준화(SYSTEMS/ENVIRONMENT/UI/FEATURES/_DYNAMIC).
 - **Phase 3** 런치패드 UI (registry → 아이콘 그리드 → SetEnabled).
-- **Phase 4** `/RoomContent-*` 스킬화 + LLM 신규기능 생성 템플릿.
-- **Phase 5** `/promptscene` 합성 스킬 + 하네스.
+- **Phase 4** `/scaffold-content` 스킬화 + LLM 신규기능 생성 템플릿.
+- **Phase 5** `/compose-room` 합성 스킬 + 하네스.
 
 ---
 
