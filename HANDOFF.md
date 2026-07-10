@@ -107,6 +107,8 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 
 ## 8. 다음에 할 일 / 열린 질문
 
+> **설계 방향 기록:** 2026-07 아키텍처 토론의 결정 사항(사거리 재정의, COMPOSITIONS 층, 에셋 전략 등)은 [design-directions-2026-07.md](promptscene/docs/design-directions-2026-07.md)에 정리됨.
+
 **바로 이어서:**
 1. ✅ **완료** — 플러그인 reload 후 `oxr-docs-routing` 스킬 노출 + 가드레일 훅 발동 실전 확인(직전 세션 §5).
 2. 이 세션 변경 커밋 여부 결정(현재 커밋 안 함). git status에 이미 있던 `.claude-plugin/*`·`README.md`·`docs/*` 수정은 **이전 세션 것** — 이번 변경(`hooks/`, `skills/oxr-docs-routing/`)과 섞어 커밋할지 확인 필요.
