@@ -39,9 +39,10 @@ Skills are invoked with the plugin namespace: `/promptscene:<skill>`.
 | Skill | What it does |
 |---|---|
 | `/promptscene:assemble-room <RoomName>` | Assembles a ROOM scene and **live-proves it end-to-end** — applies the C1–C4 invariants, rebuilds `Room.exe`, starts the Master + Room servers, joins from an editor client, and verifies the §6.5 runtime signals (avatar spawns, lobby unloads, WASD-ready). |
+| `/promptscene:scaffold-content <description>` | Scaffolds a **new FEATURE module from a natural-language prompt** and live-proves it — generates a contract-conforming `IToggleableContent` from the frozen Ruler template, drops it into a fresh RoomCore test room under `FEATURES`, rebuilds/runs/joins, and verifies the §5 FEATURES checks (self-registers, `SetEnabled` exception-free, valid meta) in the live networked room. |
 | `/promptscene:deploy-client [Meta\|XReal\|Tablet\|Vision]` | Builds and deploys the client app for the target platform — applies the device preset, bundles the room scene, bakes in the master IP, builds via `BuildPipeline`, and (Android) installs + launches over `adb` and verifies the master connection. |
 
-Run them in order: **assemble a room first**, then **deploy** that room to a device.
+Run them in order: **assemble a room first**, optionally **scaffold features** onto it, then **deploy** to a device.
 
 > Synthesizing an entire room from a single natural-language prompt — `/promptscene:compose-room` — is planned for roadmap Phase 5 (not yet implemented).
 
@@ -49,5 +50,5 @@ Run them in order: **assemble a room first**, then **deploy** that room to a dev
 
 ## Learn More
 
-- **Design & architecture:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- **Spec (SSOT):** [docs/promptscene-content-contract.md](docs/promptscene-content-contract.md)
+- **Design & architecture:** [promptscene/docs/ARCHITECTURE.md](promptscene/docs/ARCHITECTURE.md)
+- **Spec (SSOT):** [promptscene/docs/promptscene-content-contract.md](promptscene/docs/promptscene-content-contract.md)
