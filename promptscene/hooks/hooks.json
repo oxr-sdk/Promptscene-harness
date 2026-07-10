@@ -1,0 +1,17 @@
+{
+  "description": "PromptScene 가드레일: PackageCache / 패키지 매니페스트 읽기 전용 집행",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/guard-readonly-paths.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

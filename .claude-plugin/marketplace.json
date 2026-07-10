@@ -8,9 +8,9 @@
   "plugins": [
     {
       "name": "promptscene",
-      "source": "./",
+      "source": "./promptscene",
       "description": "자연어 프롬프트로 XR 룸을 합성·검증하는 스킬 묶음",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "ahnjaeyeong",
         "email": "y0ung0108@kisti.re.kr"

@@ -1,0 +1,132 @@
+# PromptScene — 세션 핸드오프 (다음 Claude 대화용 진입점)
+
+> **이 문서의 목적.** 새 Claude 세션이 이 프로젝트의 맥락을 빠르게 복원하도록,
+> "지금까지 뭘 했고 / 지금 상태가 어떻고 / 다음에 뭘 할지"를 한곳에 모은 **상태 스냅샷 + 로드맵**이다.
+> 깊은 내용은 여기 **복사하지 않는다** — `promptscene/docs/`의 원본을 가리킨다(SSOT). 낡지 않게 하려면
+> 이 문서는 "포인터 + 상태"만 유지하고, 절차·규격 같은 지식은 항상 `promptscene/docs/`에 기입한다.
+>
+> **읽는 순서:** 이 문서(전체 지도) → [README.md](README.md)(설치/사용) →
+> [promptscene/docs/ARCHITECTURE.md](promptscene/docs/ARCHITECTURE.md)(설계) → [promptscene/docs/promptscene-content-contract.md](promptscene/docs/promptscene-content-contract.md)(규격 SSOT).
+> 작업 중 막히면 `oxr-docs-routing` 스킬의 라우팅표를 따른다(아래 §6).
+>
+> **최종 갱신:** 2026-07-10.
+
+---
+
+## 1. 프로젝트 한 줄 정의
+
+**XRCollabDemo(멀티유저 XR Unity 앱)에서 자연어 프롬프트로 룸(작동 토대 + 선택 기능)을 합성하고, 구조를
+자동 검증한다.** 산출물은 두 갈래다: ① Unity 런타임 코드(얇은 코어 + 옵트인 콘텐츠 모듈), ② 그걸 조립·검증하는
+Claude Code 플러그인(이 레포 = `promptscene-harness`).
+
+## 2. 레포·프로젝트 지형 (헷갈리기 쉬움)
+
+| 것 | 위치 | 정체 | 비고 |
+|---|---|---|---|
+| **이 레포 = 로컬 마켓플레이스** | `c:\J_0` | `.claude-plugin/marketplace.json` 루트 + 타깃 Unity 앱(XRCollabDemo) 동거 | git `main`. **여기서 세션을 열어야** 플러그인이 로드됨(→ §7 함정). |
+| **promptscene 플러그인** | `c:\J_0\promptscene` | 플러그인 본체(plugin.json/skills 4종/hooks+회귀 러너). install EBUSY 회피 위해 레포 루트에서 분리 | marketplace.json은 루트 `.claude-plugin/`에 잔류. 로드 방식은 §9 |
+| **XRCollabDemo** | `c:\J_0\XRCollabDemo` | 타깃 Unity 6 앱(`6000.3.11f1`), MCP 포트 **27826** | 런타임 코드가 사는 곳: `Assets/PromptScene/`. `Library/PackageCache`는 **읽기 전용**. |
+| **DeepChairProject** | `C:\Unity\DeepChairProject` | 기능 **레퍼런스** 소스(ruler/laser/memo 등), Unity `6000.1.7f1`, MCP **22863** | 앱레이어가 XRCollabDemo에 없어 **lift-and-shift 불가 → 계약 위에 클린 재구현**이 정석. |
+
+- **런타임 코드 루트:** `XRCollabDemo\Assets\PromptScene\` — `Core\`(namespace `PromptScene.Core`: Contracts / RoomContentRegistry / SimpleClickProvider / RoomCore) + `Content\`(FEATURE 모듈: `Ruler\RulerContent.cs`, `ClickSpawner\ClickSpawnerContent.cs`).
+- **규격 SSOT:** [promptscene/docs/promptscene-content-contract.md](promptscene/docs/promptscene-content-contract.md) — 계약 인터페이스·씬 계층·불변식 C1~C4·검증 하네스·로드맵.
+
+## 3. 아키텍처 핵심 (한 문단)
+
+씬을 **SYSTEMS(작동 토대: 네트워크·세션·입장·스폰·코어 레지스트리)** 와 **FEATURES(그 위에 얹는 옵트인 콘텐츠·연출)** 로 분리한다.
+의존성은 **FEATURE → SYSTEMS 한 방향**뿐 — 코어는 어떤 기능이 얹히는지 컴파일타임에 모르고, 각 FEATURE가 런타임에
+`RoomCore.Instance` 레지스트리에 **자기등록**한다(UE5 Modular Game Features와 동일 원칙). 그래서 자연어 입력이 바뀌면
+FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수 있다. 씬 계층 표준:
+`SYSTEMS / ENVIRONMENT / UI / FEATURES / _DYNAMIC`. — 자세히: [promptscene/docs/ARCHITECTURE.md](promptscene/docs/ARCHITECTURE.md).
+
+## 4. 현재 상태 (로드맵)
+
+| Phase | 내용 | 상태 |
+|---|---|---|
+| 0 | 룸 베이스(구조+아바타+UI 전환, 불변식 C1~C4) | ✅ |
+| 1 | 계약 규격 | ✅ |
+| 2 | Ruler를 계약 위에 클린 재구현(파일럿) | ✅ |
+| 2.5 | 씬 계층 표준화 | ✅ |
+| 3 | 런치패드 UI(registry→아이콘 그리드→SetEnabled) | ⬜ **보류/롤백** — 회고 [promptscene/docs/promptscene-launchpad-attempt.md](promptscene/docs/promptscene-launchpad-attempt.md) |
+| 4 | `/scaffold-content` 스킬화 + LLM 신규 기능 생성 템플릿 | ✅ **라이브 검증(2026-07-09)**, 샘플 `ClickSpawnerContent`로 §5+§6.5 PASS |
+| 5 | `/compose-room` 합성 스킬 + 합성 하네스 | ⬜ **다음 목표** |
+
+**스킬 3종(현재 동작):**
+- `/promptscene:assemble-room <RoomName>` — ROOM 조립 + C1~C4 + 서버 재빌드/조인 + §6.5 런타임 신호 라이브 증명.
+- `/promptscene:scaffold-content <설명>` — 프롬프트→FEATURE 모듈 생성(동결된 Ruler 템플릿) + RoomCore 테스트룸에 얹어 §5 라이브 검증.
+- `/promptscene:deploy-client [Meta|XReal|Tablet|Vision]` — 디바이스 프리셋 적용 + 룸 씬 번들 + 마스터 IP 베이크 + 빌드/adb 배포·검증.
+
+**정직 계약:** 하네스는 **§5 구조/계약 적합성만** 증명한다. 기능의 실제 동작·미감은 **비검증**(사람/비전 루프 필요).
+
+## 5. 직전 세션(2026-07-10, 가드레일 실전화)
+
+- **플러그인 디렉터리 분리**(`c:\J_0\promptscene`) + **local marketplace 등록** + **Install locally**로 실제 설치.
+- **가드 스크립트 백슬래시 경로 fail-open 수정**: 입구에서 `\`→`/` 정규화 후 매칭하도록 봉합.
+- **회귀 러너 추가**: `promptscene/hooks/scripts/test-guard-readonly-paths.sh` — 11케이스(차단 8 / 허용 3).
+- **실전 검증**: 스킬 층(`oxr-docs-routing` 자동발동 거절) + 훅 층(Bash `cp` 실행 전 차단, Edit 차단) **이중 확인**.
+
+## 6. 막혔을 때 어디를 읽나 (라우팅 요약)
+
+`oxr-docs-routing` 스킬이 정본이다. 요지:
+
+| 증상/작업 | 소스 |
+|---|---|
+| 계약 인터페이스 컴파일 에러 | contract §2 |
+| 아바타 안 뜸 / 로비 안 사라짐 / WASD 불가 | [promptscene/docs/build-working-room.md](promptscene/docs/build-working-room.md) + C1~C4 |
+| 네트워크 스폰·RPC·소유권 | GitBook Object Management(패턴) → **PackageCache XumNet 소스로 시그니처 재검증** → `Documentation~/ai` 보충 |
+| 서버(.exe) 빌드/실행 | [promptscene/docs/build-xumlobby-server.md](promptscene/docs/build-xumlobby-server.md) |
+| Quest 클라 빌드 / 화면 깜빡임 | [promptscene/docs/build-meta-client.md](promptscene/docs/build-meta-client.md) (§2.4-D 즉답) |
+| 새 씬 조립 | [promptscene/docs/build-working-room.md](promptscene/docs/build-working-room.md) 우선 |
+
+**가드레일:** PackageCache와 패키지 매니페스트는 **수정 금지**(훅이 차단). 막히면 우회 말고 **읽고→보고→지시 대기**. 문제를 풀면 그 해법을 해당 `promptscene/docs/`에 추가하는 **패치를 제안**(역기입 루프).
+
+## 7. 반드시 알아야 할 함정 (요약 — 상세는 링크 문서에)
+
+> **교훈(가드 검증):** 가드는 *통과* 테스트가 아니라 **차단 재현**으로 검증한다. fail-open이면 조용히 무력화되므로 "안 걸렸다=안전"이 아니다 — 실제 차단이 재현되는지를 봐야 한다.
+
+**플러그인/가드 관련 (이번 세션 신규):**
+- **하위 폴더에서 세션 시작 → 플러그인 미로드:** 레포 루트(`c:\J_0`)가 아닌 하위 폴더(예: `XRCollabDemo/`)에서 Claude 세션을 열면 플러그인이 로드되지 않아 **가드 훅이 아예 발동하지 않는다**(PackageCache 보호가 조용히 사라짐). 반드시 마켓플레이스/플러그인 루트에서 시작.
+- **플러그인 루트에 Unity 프로젝트 두면 install EBUSY:** Unity 프로젝트가 플러그인 루트에 있으면 `Install locally`가 Library 파일 락으로 **EBUSY** 실패. → 플러그인을 `promptscene/` 하위로 **분리**해 설치기가 Unity 프로젝트를 건드리지 않게 했다.
+- **Windows 백슬래시 경로 → 정규식 fail-open:** 가드 정규식이 슬래시(`/`) 경로만 매칭해서, 백슬래시(`\`) 경로가 **무검사 통과**(fail-open)됐다. → 입구에서 `\`→`/` **정규화** + 두 구분자 모두 커버하는 **회귀 러너** 추가로 봉합.
+- **가드는 보수적으로 차단(cp 백업 포함):** 명령 문자열에 보호 경로가 들어가면 읽기성 의도라도 막힌다 — `manifest.json`을 언급하는 `cp` 백업조차 차단. 읽기는 `cat`/`grep`/`ls`만, 보호 파일을 셸로 스냅샷하려 하지 말 것.
+- **플러그인 스킬/훅은 세션을 `c:\J_0`에서 시작해야 로드됨:** XRCollabDemo 등 하위 폴더에서 시작하면 가드가 **조용히 무력화(fail-open)**. 시작 로그의 스킬 출처로 확인.
+- **플러그인 install은 플러그인 루트 전체를 `~/.claude/plugins/cache`로 복사** — 루트에 Unity 프로젝트가 있으면 EBUSY. 플러그인은 `promptscene/` 하위로 분리 완료.
+- **Windows의 Edit/Write는 백슬래시 경로를 넘김** — 슬래시 전용 정규식은 fail-open. 가드는 입구 정규화로 수정됨. 스크립트 수정 시 반드시 **회귀 러너 실행**.
+- **가드는 보수적:** 보호 파일을 source로 하는 `cp`(백업)도 차단됨. 훅 스크립트 수정은 **소스 수정만으론 반영 안 됨** — 플러그인 재설치 + 세션 재시작 필요.
+
+**Unity/네트워크:**
+- **Room.exe 재빌드 필요 조건:** FishNet 네트워크 씬 오브젝트를 배치/재배치하면 SceneId 재직렬화 + scene-save + **Room.exe 재빌드** 없이는 서버가 스폰 안 함(아바타/오브젝트 안 뜸). — launchpad 회고 §기술2.
+- **PlayerSpawner는 프리팹으로:** `Assets/PromptScene/Prefabs/Room-PlayerSpawner.prefab`. 스크립트로 NetworkObject 만들면 scene id 무효 → "Failed to confirm access"로 입장 거부. — architecture 메모리 / build-working-room.
+- **콜드 Room 빌드는 10분+**, 그동안 MCP 전부 블로킹("Response data is null"). **행 아님** — 파일시스템(level0/cfg LastWriteTime) 폴링으로 완료 판정, MCP 응답성으로 판단 금지.
+- **새 `.cs` 추가 직후 빌드 실패** 가능(`scripts are compiling`) — `EditorApplication.isCompiling==false` 확인 후 빌드.
+- **입력은 신형 Input System 전용**(`activeInputHandler=1`): 레거시 `UnityEngine.Input` 예외 → `Mouse.current...`. uGUI 클릭엔 `InputSystemUIInputModule` 필요.
+- **전용 서버 실행순서:** `MasterAndSpawner.exe` → (6s) `Room.exe` → 그다음 에디터 Play. 서버 안 켜고 Play만 = 로비에서 안 넘어감.
+- **이 머신 `python3`은 Store 스텁** — 스크립트는 `python`/`py`를 써야 실제로 돈다.
+
+**교훈:** **가드는 "통과 테스트"가 아니라 "차단 재현"으로 검증한다** — python 스텁·세션 스코프·백슬래시 3건 모두 통과 테스트는 성공했으나 실전에서 fail-open이었음.
+
+## 8. 다음에 할 일 / 열린 질문
+
+**바로 이어서:**
+1. ✅ **완료** — 플러그인 reload 후 `oxr-docs-routing` 스킬 노출 + 가드레일 훅 발동 실전 확인(직전 세션 §5).
+2. 이 세션 변경 커밋 여부 결정(현재 커밋 안 함). git status에 이미 있던 `.claude-plugin/*`·`README.md`·`docs/*` 수정은 **이전 세션 것** — 이번 변경(`hooks/`, `skills/oxr-docs-routing/`)과 섞어 커밋할지 확인 필요.
+
+**Phase 5 (`/compose-room`) 를 향해 — launchpad 회고에서 넘어온 미해결 프론티어:**
+- **멀티플레이 실증:** 지금껏 "1인 + 서버"만 검증. 자동 조인하는 2번째 클라(또는 사람 수동 실행)로 "서로 보이는" 그림을 실제로 만들어야 함.
+- **플레이테스트 하네스:** 게임 로직 "정확성"은 구조 하네스로 안 됨 → **시뮬 플레이어 N명** 플레이테스트 하네스가 필요(프론티어).
+- **시각화 우선:** 진행도/역할/결과를 화면에 띄우기(로그 말고).
+- **미감 루프:** 스크린샷 → 비전/사람 승인 없이는 "이쁘게" 자동 달성 불가.
+- **런치패드 은유 재고:** 방마다 UI 컨셉이 다를 텐데 아이콘 그리드가 맞는가?
+
+## 9. 환경/툴 메모
+
+- **Unity/MCP:** XRCollabDemo `6000.3.11f1`(MCP 27826) / DeepChairProject `6000.1.7f1`(MCP 22863). 스킬 실행 전 대상 에디터의 `ai-game-developer` MCP가 **살아 있어야** 함.
+- **script-execute:** Roslyn full-code 모드(className/methodName). 프로젝트 타입은 리플렉션(AppDomain 순회)으로 접근. `using UnityEditor.SceneManagement` 등 누락 주의, `Object`는 `UnityEngine.Object`로 명시.
+- **셸:** 기본 PowerShell(5.1) + Bash 툴(POSIX). 훅 스크립트는 bash.
+- **플러그인 설치:** `c:\J_0`를 **로컬 마켓플레이스**로 등록 후 `Install locally`로 `promptscene` 설치. **훅/스킬 변경은 재설치 + 세션 재시작해야 반영**된다(`/reload-plugins`만으로 훅이 안 잡힐 수 있음). 세션은 반드시 마켓플레이스 루트에서 시작(→ §7).
+- **플러그인 로드 방식:** local marketplace(`c:\J_0`) + `/plugin install promptscene@promptscene-harness`(Install locally). **훅 반영은 재설치 + 재시작 필요.**
+- **원격/private:** `oxr-sdk` 레포는 private — clone/fetch 시도 금지, 필요한 건 로컬 PackageCache에 있음.
+
+---
+
+*관련 메모리: PromptScene Architecture, XRCollabDemo MCP Setup, PromptScene Room Anatomy, prefer-rename-over-uninstall, deploy-client-loadpreset-loop.*

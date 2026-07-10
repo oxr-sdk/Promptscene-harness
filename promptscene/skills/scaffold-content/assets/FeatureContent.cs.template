@@ -1,0 +1,177 @@
+// =============================================================================
+// PromptScene FEATURE template  (frozen Ruler pattern — see docs/promptscene-content-contract.md §2–§3)
+//
+// HOW TO USE (the LLM / scaffolder):
+//   1. Copy this file to  Assets/PromptScene/Content/<Feature>/<Feature>Content.cs
+//   2. Replace every __TOKEN__ (see the token table below).
+//   3. Fill ONLY the regions marked  ===== FEATURE LOGIC (edit) =====.
+//      Everything outside those regions is the CONTRACT PLUMBING — do NOT change it;
+//      the §5 harness verifies it exactly as-is (self-register, idempotent toggle, meta).
+//
+// TOKENS
+//   __FEATURE_CLASS__   PascalCase C# class, ends with "Content"      e.g. LaserPointerContent
+//   __FEATURE_ID__      lower-kebab unique id (registry key)          e.g. laser-pointer
+//   __DISPLAY_NAME__    UI label (Korean ok)                          e.g. 레이저 포인터
+//   __CATEGORY__        grouping label                                e.g. 도구 / 측정 / 연출
+//   __DEFAULT_ON__      true|false — enabled the moment it registers?  usually false
+//
+// HARD RULES (a scaffolded feature that breaks any of these is rejected by §5)
+//   R1  Depends ONLY on `PromptScene.Core` + Unity built-ins. NEVER reference another
+//       FEATURE, RoomManager, XumLobby, FishNet, or any SYSTEMS type directly.
+//   R2  Get SYSTEMS services ONLY through the injected `_core` (IRoomCore), resolved generically
+//       with `_core.TryGet<T>(out ...)` inside TryResolveServices() — e.g.
+//       `_core.TryGet<IInteraction>(out _interaction)`, then `_interaction.AddClick(...)`.
+//       (v0.2 contract: services are looked up, not enumerated as _core.Interaction/_core.Net.)
+//       GRACEFUL FAILURE: if a REQUIRED service is missing, log a warning and stay disabled
+//       (return false) — never throw / null-ref. Never touch platform input (UnityEngine.Input /
+//       new Input System) or Instantiate the network stack directly.
+//   R3  SetEnabled must be idempotent and exception-free for BOTH true and false, in any
+//       order, even before OnRegister. The plumbing below guarantees this — keep it.
+//   R4  Clean up everything you create in OnDeactivate()/OnUnregister(). No leaks, no
+//       null-ref on teardown. Runtime spawns SHOULD be parented under the scene's
+//       "===== _DYNAMIC =====" root when present (helper: DynamicRoot()).
+//   R5  No compile errors. Self-contained: any extra helper MonoBehaviour goes in THIS
+//       file as a separate top-level class (see the billboard example at the bottom).
+// =============================================================================
+using System.Collections.Generic;
+using UnityEngine;
+using PromptScene.Core;
+
+/// <summary>
+/// __DISPLAY_NAME__ — a toggleable PromptScene CONTENT module.
+/// <!-- one line: what it does + how the user drives it (e.g. "two clicks draw a line") -->
+/// Self-registers to RoomCore; depends ONLY on PromptScene.Core + Unity built-ins.
+/// </summary>
+public class __FEATURE_CLASS__ : MonoBehaviour, IToggleableContent
+{
+    // ===== FEATURE LOGIC (edit): serialized tunables & state =====
+    [SerializeField] private Sprite icon;
+    // e.g. [SerializeField] private Color color = Color.cyan;
+
+    private readonly List<GameObject> _spawned = new List<GameObject>();
+    // ===== end edit =====
+
+    // ---- CONTRACT PLUMBING (do not edit) --------------------------------------
+    private IRoomCore _core;
+    private bool _servicesReady;
+    private bool _enabled;
+    private bool _registered;
+
+    public string Id => "__FEATURE_ID__";
+    public bool IsEnabled => _enabled;
+    public ContentMeta Meta => new ContentMeta
+    {
+        DisplayName = "__DISPLAY_NAME__",
+        Icon = icon,
+        Category = "__CATEGORY__",
+        DefaultOn = __DEFAULT_ON__,
+        MutuallyExclusive = new string[0]
+    };
+
+    private void OnEnable() { TryRegister(); }
+    private void Start()    { TryRegister(); }
+
+    private void TryRegister()
+    {
+        if (_registered || RoomCore.Instance == null) return;
+        RoomCore.Instance.Contents.Register(this);
+        _registered = true;
+    }
+
+    private void OnDisable()
+    {
+        if (_registered && RoomCore.Instance != null)
+            RoomCore.Instance.Contents.Unregister(this);
+        _registered = false;
+    }
+
+    public void OnRegister(IRoomCore core)
+    {
+        _core = core;
+        _servicesReady = TryResolveServices(core);   // FEATURE LOGIC fills TryResolveServices (graceful fail)
+    }
+    public void OnUnregister() { SetEnabled(false); _core = null; _servicesReady = false; }
+
+    public void SetEnabled(bool on)
+    {
+        if (_core == null) return;      // R3: safe before registration
+        if (!_servicesReady) return;    // R2: required service missing → feature stays disabled
+        if (on == _enabled) return;     // R3: idempotent
+        _enabled = on;
+        if (on) OnActivate(); else OnDeactivate();
+        RoomCore.Instance?.Contents.NotifyToggled(this, on);
+    }
+
+    /// <summary>Scene's "===== _DYNAMIC =====" root if present, else this transform (R4).</summary>
+    private Transform DynamicRoot()
+    {
+        foreach (var go in gameObject.scene.GetRootGameObjects())
+            if (go.name.Contains("_DYNAMIC")) return go.transform;
+        return transform;
+    }
+    // ---- end plumbing ---------------------------------------------------------
+
+    // ===== FEATURE LOGIC (edit): service resolution (R2, graceful failure) =====
+    // Cache the SYSTEMS services this feature needs. Return false (after a warning) if a REQUIRED
+    // service is absent — the feature then stays permanently disabled instead of throwing.
+    // Delete the example field/lookup if your feature needs different (or no) services.
+    private IInteraction _interaction;   // example: a click-driven feature
+    private bool TryResolveServices(IRoomCore core)
+    {
+        if (!core.TryGet<IInteraction>(out _interaction))
+        {
+            Debug.LogWarning($"[{Id}] required service {nameof(IInteraction)} not available — feature stays disabled");
+            return false;
+        }
+        return true;
+    }
+    // ===== end edit =====
+
+    // ===== FEATURE LOGIC (edit): activation =====
+    // Called when the feature is turned ON. Subscribe to input, arm timers, etc.
+    // For a click-driven feature: _interaction.AddClick(OnClick);
+    private void OnActivate()
+    {
+        // TODO: implement. e.g. _interaction.AddClick(OnClick);
+    }
+
+    // Called when the feature is turned OFF. UNDO everything OnActivate did + clean spawns (R4).
+    private void OnDeactivate()
+    {
+        // TODO: mirror OnActivate. e.g. _interaction.RemoveClick(OnClick);
+        ClearSpawned();
+    }
+
+    // Optional: raycast-hit handler for click-driven features. Delete if unused.
+    private void OnClick(RaycastHit hit)
+    {
+        if (!_enabled) return;
+        // TODO: react to hit.point / hit.collider. Parent any spawn under DynamicRoot().
+    }
+    // ===== end edit =====
+
+    // ---- CONTRACT PLUMBING (do not edit): spawn bookkeeping -------------------
+    /// <summary>Track a runtime object so it is auto-cleaned on deactivate/unregister (R4).</summary>
+    private GameObject Track(GameObject go) { if (go != null) _spawned.Add(go); return go; }
+
+    private void ClearSpawned()
+    {
+        foreach (var g in _spawned) if (g != null) Destroy(g);
+        _spawned.Clear();
+    }
+    // ---- end plumbing ---------------------------------------------------------
+}
+
+// ===== FEATURE LOGIC (edit): extra helpers, top-level (R5) =====
+// Nested classes make AddComponent unreliable — keep helper MonoBehaviours top-level, like:
+//
+// public class __FEATURE_CLASS__Billboard : MonoBehaviour
+// {
+//     private void LateUpdate()
+//     {
+//         var cam = Camera.main;
+//         if (cam != null)
+//             transform.rotation = Quaternion.LookRotation(transform.position - cam.transform.position);
+//     }
+// }
+// ===== end edit =====
