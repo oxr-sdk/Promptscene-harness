@@ -9,7 +9,7 @@
 > [promptscene/docs/ARCHITECTURE.md](promptscene/docs/ARCHITECTURE.md)(설계) → [promptscene/docs/promptscene-content-contract.md](promptscene/docs/promptscene-content-contract.md)(규격 SSOT).
 > 작업 중 막히면 `oxr-docs-routing` 스킬의 라우팅표를 따른다(아래 §6).
 >
-> **최종 갱신:** 2026-07-10.
+> **최종 갱신:** 2026-07-13.
 
 ---
 
@@ -49,21 +49,22 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 | 2.5 | 씬 계층 표준화 | ✅ |
 | 3 | 런치패드 UI(registry→아이콘 그리드→SetEnabled) | ⬜ **보류/롤백** — 회고 [promptscene/docs/promptscene-launchpad-attempt.md](promptscene/docs/promptscene-launchpad-attempt.md) |
 | 4 | `/scaffold-content` 스킬화 + LLM 신규 기능 생성 템플릿 | ✅ **라이브 검증(2026-07-09)**, 샘플 `ClickSpawnerContent`로 §5+§6.5 PASS |
-| 5 | `/compose-room` 합성 스킬 + 합성 하네스 | ⬜ **다음 목표** |
+| 5 | `/compose-room` 합성 스킬 + 합성 하네스 | ✅ **라이브 검증(2026-07-13)**, `ComposedRoom_1`(Ruler)로 §5+§6.5 PASS |
 
-**스킬 3종(현재 동작):**
+**스킬 4종(현재 동작):**
 - `/promptscene:assemble-room <RoomName>` — ROOM 조립 + C1~C4 + 서버 재빌드/조인 + §6.5 런타임 신호 라이브 증명.
 - `/promptscene:scaffold-content <설명>` — 프롬프트→FEATURE 모듈 생성(동결된 Ruler 템플릿) + RoomCore 테스트룸에 얹어 §5 라이브 검증.
+- `/promptscene:compose-room <자연어 룸 요청>` — 오케스트레이터: 자연어→기능 선택(카탈로그 매칭 + `composition-plan.json` 박제)→assemble-room·scaffold-content **참조 호출**로 N기능 룸 조립→§6.5 SYSTEMS + §5 FEATURES(기능마다) 자동 판정. 조립 절차는 하위 스킬을 참조(복제 금지).
 - `/promptscene:deploy-client [Meta|XReal|Tablet|Vision]` — 디바이스 프리셋 적용 + 룸 씬 번들 + 마스터 IP 베이크 + 빌드/adb 배포·검증.
 
 **정직 계약:** 하네스는 **§5 구조/계약 적합성만** 증명한다. 기능의 실제 동작·미감은 **비검증**(사람/비전 루프 필요).
 
-## 5. 직전 세션(2026-07-10, 가드레일 실전화)
+## 5. 직전 세션(2026-07-13, Phase 5 관통)
 
-- **플러그인 디렉터리 분리**(`c:\J_0\promptscene`) + **local marketplace 등록** + **Install locally**로 실제 설치.
-- **가드 스크립트 백슬래시 경로 fail-open 수정**: 입구에서 `\`→`/` 정규화 후 매칭하도록 봉합.
-- **회귀 러너 추가**: `promptscene/hooks/scripts/test-guard-readonly-paths.sh` — 11케이스(차단 8 / 허용 3).
-- **실전 검증**: 스킬 층(`oxr-docs-routing` 자동발동 거절) + 훅 층(Bash `cp` 실행 전 차단, Edit 차단) **이중 확인**.
+- **`/compose-room` 스킬 신설**(`promptscene/skills/compose-room/`): SKILL.md(PARSE→RESOLVE→PLAN→EXECUTE→VERIFY) + 자산 2종(`build_composed_room.cs` N기능 조립, `verify_composition.cs` N기능 §5 판정). 설계 확정: compose-room은 **오케스트레이터** — 신규 담당은 ①자연어→기능 선택 ②부품 조율+최종 판정뿐, 조립은 assemble-room·scaffold-content **참조 호출**(절차 복제 금지, SSOT). PLAN은 `composition-plan.json`으로 박제(계획 vs 실행 문제 분리), unresolved/conflict 시 정지·질문.
+- **관통 검증 PASS**: "측정 도구 있는 룸 만들어줘" → Ruler(Category 측정) 선택 → `ComposedRoom_1` 조립 → Room.exe 재빌드 → 서버+에디터 클라 조인 → **§6.5 4신호 전부**(become-a-player / 로비 소멸+MovedObjectsHolder / Desktop(Clone) IsOwner=True / DummyController+헤드팔로워+NetworkTransform) + **§5 COMPOSITION PASS**(ruler 자기등록·SetEnabled 무예외·Meta 룰러/측정).
+- **핵심 발견·수정 — 스크립트 단발 빌드의 FishNet SceneId 미할당 함정**: 한 `script-execute`로 씬 생성→저장하면 FishNet 자동 SceneId 훅이 비결정적으로 누락돼 스포너 `SceneId=0`으로 저장 → **아바타만 조용히 안 뜸**(입장·로비 소멸·스포너 복제는 정상). 격리 검증(FeatureLab_1은 오늘 정상 스폰 → 환경 아님, ComposedRoom_1 3회 실패 → 씬 결함)으로 원인 확정, FishNet `NetworkObject.CreateSceneId(force)` 명시 호출로 수정. compose-room·scaffold-content 두 빌더 + contract §1에 반영. 상세는 §7·contract §1.
+- (이전 세션 2026-07-10 가드레일 실전화 요약은 git 이력 참조.)
 
 ## 6. 막혔을 때 어디를 읽나 (라우팅 요약)
 
@@ -96,6 +97,7 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 
 **Unity/네트워크:**
 - **Room.exe 재빌드 필요 조건:** FishNet 네트워크 씬 오브젝트를 배치/재배치하면 SceneId 재직렬화 + scene-save + **Room.exe 재빌드** 없이는 서버가 스폰 안 함(아바타/오브젝트 안 뜸). — launchpad 회고 §기술2.
+- **스크립트 단발 빌드는 FishNet SceneId 자동 할당을 놓친다(2026-07-13 발견):** `NewScene→배치→SaveScene`을 한 `script-execute`로 끝내면 스포너 NetworkObject가 `SceneId=0/IsSceneObject=false`로 저장돼 **아바타만 조용히 스폰 실패**(입장·로비 소멸·스포너 복제는 정상, "become a player"도 뜸 → 오진 유발). 빌더 저장 직전 `NetworkObject.CreateSceneId(scene,force:true,out changed)`+`ReserializeEditorSetValues`(둘 다 internal→리플렉션) 명시 호출로 고정. 빌더 로그의 `sceneIdsGenerated≥1` 확인. 상세 contract §1.
 - **PlayerSpawner는 프리팹으로:** `Assets/PromptScene/Prefabs/Room-PlayerSpawner.prefab`. 스크립트로 NetworkObject 만들면 scene id 무효 → "Failed to confirm access"로 입장 거부. — architecture 메모리 / build-working-room.
 - **콜드 Room 빌드는 10분+**, 그동안 MCP 전부 블로킹("Response data is null"). **행 아님** — 파일시스템(level0/cfg LastWriteTime) 폴링으로 완료 판정, MCP 응답성으로 판단 금지.
 - **새 `.cs` 추가 직후 빌드 실패** 가능(`scripts are compiling`) — `EditorApplication.isCompiling==false` 확인 후 빌드.
@@ -110,11 +112,12 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 > **설계 방향 기록:** 2026-07 아키텍처 토론의 결정 사항(사거리 재정의, COMPOSITIONS 층, 에셋 전략 등)은 [design-directions-2026-07.md](promptscene/docs/design-directions-2026-07.md)에 정리됨.
 
 **바로 이어서:**
-1. ✅ **완료** — 플러그인 reload 후 `oxr-docs-routing` 스킬 노출 + 가드레일 훅 발동 실전 확인(직전 세션 §5).
-2. 이 세션 변경 커밋 여부 결정(현재 커밋 안 함). git status에 이미 있던 `.claude-plugin/*`·`README.md`·`docs/*` 수정은 **이전 세션 것** — 이번 변경(`hooks/`, `skills/oxr-docs-routing/`)과 섞어 커밋할지 확인 필요.
+1. ✅ **완료** — Phase 5 `/compose-room` 관통(§5). 스킬 신설 커밋과 검증·문서 갱신 커밋을 분리해 기록.
+2. **로드맵 다음 순서(design-directions D5):** 닫기·Phase 5 완료 → **아픈 순서대로 D3(생성 에셋 파이프라인) 또는 D2(COMPOSITIONS 층)** → D4-1(잡기 소유권) → D4-2(예측). D2 착수 시점은 "서로 통신해야 하는 기능 2개"가 실제로 생길 때(지금 Ruler/ClickSpawner는 직교 → 수요 없음).
+3. **compose-room 확장 여지(v1은 최소 관통):** `mode:"extend"`(기존 룸에 기능 추가), 다기능 합성(2개+) 실증, 파라미터(`params`) 실제 전달, MutuallyExclusive 충돌 케이스 실증.
 
-**Phase 5 (`/compose-room`) 를 향해 — launchpad 회고에서 넘어온 미해결 프론티어:**
-- **멀티플레이 실증:** 지금껏 "1인 + 서버"만 검증. 자동 조인하는 2번째 클라(또는 사람 수동 실행)로 "서로 보이는" 그림을 실제로 만들어야 함.
+**Phase 5 이후에도 남은 프론티어(launchpad 회고에서 이월):**
+- **멀티플레이 실증:** 지금껏 "1인 + 서버"만 검증(compose-room 관통도 1인). 자동 조인하는 2번째 클라(또는 사람 수동 실행)로 "서로 보이는" 그림을 실제로 만들어야 함.
 - **플레이테스트 하네스:** 게임 로직 "정확성"은 구조 하네스로 안 됨 → **시뮬 플레이어 N명** 플레이테스트 하네스가 필요(프론티어).
 - **시각화 우선:** 진행도/역할/결과를 화면에 띄우기(로그 말고).
 - **미감 루프:** 스크린샷 → 비전/사람 승인 없이는 "이쁘게" 자동 달성 불가.

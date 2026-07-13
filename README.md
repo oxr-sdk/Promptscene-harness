@@ -40,11 +40,10 @@ Skills are invoked with the plugin namespace: `/promptscene:<skill>`.
 |---|---|
 | `/promptscene:assemble-room <RoomName>` | Assembles a ROOM scene and **live-proves it end-to-end** — applies the C1–C4 invariants, rebuilds `Room.exe`, starts the Master + Room servers, joins from an editor client, and verifies the §6.5 runtime signals (avatar spawns, lobby unloads, WASD-ready). |
 | `/promptscene:scaffold-content <description>` | Scaffolds a **new FEATURE module from a natural-language prompt** and live-proves it — generates a contract-conforming `IToggleableContent` from the frozen Ruler template, drops it into a fresh RoomCore test room under `FEATURES`, rebuilds/runs/joins, and verifies the §5 FEATURES checks (self-registers, `SetEnabled` exception-free, valid meta) in the live networked room. |
+| `/promptscene:compose-room <natural-language room request>` | **Composes a room from a one-line request** by selecting existing FEATURE modules from the `Content/` catalog, recording the choice in `composition-plan.json`, assembling them onto a RoomCore base, and live-proving it — orchestrates `assemble-room` + `scaffold-content` (by reference, not duplication) then auto-judges both the §6.5 SYSTEMS signals and the §5 FEATURES checks for every selected feature. |
 | `/promptscene:deploy-client [Meta\|XReal\|Tablet\|Vision]` | Builds and deploys the client app for the target platform — applies the device preset, bundles the room scene, bakes in the master IP, builds via `BuildPipeline`, and (Android) installs + launches over `adb` and verifies the master connection. |
 
-Run them in order: **assemble a room first**, optionally **scaffold features** onto it, then **deploy** to a device.
-
-> Synthesizing an entire room from a single natural-language prompt — `/promptscene:compose-room` — is planned for roadmap Phase 5 (not yet implemented).
+Run them in order: **compose or assemble a room first**, optionally **scaffold new features** onto it, then **deploy** to a device.
 
 ---
 

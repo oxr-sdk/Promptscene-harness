@@ -46,6 +46,7 @@
 - FEATURE 모듈은 `===== FEATURES =====` 아래에 통째로 들어오며, 빠지면 SYSTEMS에 참조가 0개 → 빌드/런타임 안 깨짐.
 - 횡단 작업(스케일 변경 시 정리 등)은 SYSTEMS가 레지스트리를 순회해 처리. 기능 추가 시 SYSTEMS 코드 수정 0.
 - ⚠️ FishNet **씬 네트워크 오브젝트**(R-RoomServer, --PLAYER_SPAWNER)를 재배치하면 씬오브젝트 ID가 바뀐다 → 네트워크 빌드(Room.exe) 재빌드 필요.
+- ⚠️ **스크립트 단발 빌드는 FishNet SceneId를 자동 할당하지 못한다** (2026-07-13 발견). 한 번의 `script-execute` 안에서 `NewScene`→오브젝트 배치→`SaveScene`을 끝내면, FishNet의 자동 SceneId 생성 훅(`EditorSceneManager.sceneSaving`)이 **비결정적으로 건너뛰어져** 스포너 NetworkObject가 `SceneId=0 / IsSceneObject=false`로 저장될 수 있다. 증상이 **조용하다**: 룸 입장·로비 소멸(C3)·스포너 복제까지 정상인데 **아바타(Desktop(Clone))만 스폰되지 않는다**(전용 서버가 SceneId 없는 스포너로 플레이어를 못 띄움). "become a player" 로그는 MST 레벨이라 떠도 FishNet 스폰은 실패. **해법**: 저장 직전에 `Tools/Fish-Networking/Utility/Reserialize NetworkObjects`가 하는 일을 코드로 재현 — `NetworkObject.CreateSceneId(scene, force:true, out changed)` + 각 nob에 `ReserializeEditorSetValues(true,false)`(둘 다 `internal`→리플렉션) 후 `SaveScene`. 검증: 재오픈해서 스포너 `IsSceneObject==true`. compose-room의 `build_composed_room.cs`(`AssignFishNetSceneIds`)와 scaffold-content의 `build_feature_room.cs`에 반영됨. (assemble-room처럼 여러 `script-execute`에 걸쳐 씬을 열어두고 저장하는 흐름은 훅이 붙을 틈이 있어 우연히 통과하기도 했다 — 그래서 함정.)
 - ⚠️ **VR 클라 주의**: `ENVIRONMENT`의 `Main Camera`는 데스크톱/에디터 검증용이다. **VR 클라(Quest)에선 유지되는 XR 리그 카메라와 충돌**해 화면 깜빡임+시점 고정을 유발한다("2 audio listeners" 경고 동반). 룸 씬의 Main Camera(Camera+AudioListener)를 **비활성화하고 태그를 Untagged**로 두면 `Camera.main`이 XR 리그로 잡힌다. ☞ `build-meta-client.md` §2.4-D
 
 ---
@@ -60,7 +61,7 @@ namespace PromptScene.Core
 {
     public interface IRoomUserState { string MultiScaleName { get; } }
     public interface IInteraction { void AddClick(Action<RaycastHit> onClick); void RemoveClick(Action<RaycastHit> onClick); }
-    public interface INetSpawn { bool IsNetworked { get; } GameObject Spawn(GameObject prefab, Vector3 p, Quaternion r); void Despawn(GameObject instance); }
+    public interface INetSpawn { bool IsNetworked { get; } GameObject Spawn(GameObject prefab, Vector3 p, Quaternion r); void Despawn(GameObject instance); } // Despawn: Spawn으로 만든 인스턴스만 넘길 것 — 서버 권한에서 네트워크 디스폰(+ 로컬 파괴) 처리
 
     // v0.2: 서비스는 프로퍼티로 열거하지 않고 TryGet<T>로 조회한다. 서비스가 늘어도 IRoomCore는 안 바뀐다.
     public interface IRoomCore
@@ -143,9 +144,31 @@ namespace PromptScene.Core
 - **Phase 2.5** ✅ 씬 계층 표준화(SYSTEMS/ENVIRONMENT/UI/FEATURES/_DYNAMIC).
 - **Phase 3** 런치패드 UI (registry → 아이콘 그리드 → SetEnabled).
 - **Phase 4** ✅ `/scaffold-content` 스킬화 + LLM 신규기능 생성 템플릿 (`skills/scaffold-content/`). Ruler 패턴을 `FeatureContent.cs.template`로 동결(§2·§3 배관 고정, 기능 로직만 채움) → RoomCore 룸에 얹어 §5 FEATURES 체크를 **라이브 네트워크 룸**에서 집행. **라이브 검증됨**(2026-07-09, `ClickSpawnerContent`로 §5+§6.5 양쪽 PASS).
-- **Phase 5** `/compose-room` 합성 스킬 + 하네스.
+- **Phase 5** ✅ `/compose-room` 합성 스킬 + 합성 하네스 (`skills/compose-room/`). 자연어→기능 선택(PARSE·RESOLVE·PLAN)과 부품 오케스트레이션+최종 판정(EXECUTE·VERIFY)만 신규 담당하고, 씬 조립은 `assemble-room`, RoomCore+FEATURES 배치는 `scaffold-content`를 **참조 호출**(절차 복제 금지). PLAN은 `composition-plan.json`(§7)으로 박제하고 unresolved/conflict 시 정지. **라이브 검증됨**(2026-07-13, "측정 도구 있는 룸" → Ruler → `ComposedRoom_1` → §6.5 4신호 + §5 COMPOSITION 모두 PASS). 이 과정에서 **스크립트 단발 빌드의 FishNet SceneId 미할당 함정**(§1)을 발견·수정.
 
 ---
+
+## 7. 합성 계획 스키마 (`composition-plan.json`) — compose-room
+
+> compose-room(Phase 5)이 **실행 전에** 자연어 요청의 해석 결과를 박제하는 기록. 목적: 실패 시 **계획 문제(선택이 틀림)와 실행 문제(조립·스폰이 틀림)를 분리**하고, 합성을 diff 가능하게 남긴다. 위치: `skills/compose-room/composition-plan.json`(실행마다 덮어씀).
+
+```json
+{
+  "roomName": "ComposedRoom_1",   // 사용자가 지정 없으면 ComposedRoom_N
+  "mode": "create",                // v1 고정. 필드만 예약(향후 "extend" 등)
+  "request": "측정 도구 있는 룸 만들어줘",  // 원문(추적용, 선택)
+  "features": [                    // RESOLVE가 카탈로그(Content/*.cs의 ContentMeta)와 매칭한 결과
+    { "id": "ruler", "class": "RulerContent", "params": {} }
+  ],
+  "unresolved": [],                // 카탈로그에 매칭 안 된 요청 능력(비면 진행 가능)
+  "conflicts": []                  // MutuallyExclusive 충돌 쌍(비면 진행 가능)
+}
+```
+
+규칙
+- **카탈로그는 소스에서 구성** — 별도 manifest 파일 신설 금지(두 소비자 규칙 §4.5). `id`는 각 콘텐츠의 `Id`, `class`는 클래스명, 매칭 근거는 `ContentMeta`의 `DisplayName`/`Category`/`MutuallyExclusive`.
+- **`unresolved` 또는 `conflicts`가 비어있지 않으면 EXECUTE 금지 — 사람에게 보고 후 대기.** scaffold-content 자동 연쇄 금지("Memo가 카탈로그에 없음, scaffold할까?" 형태로 질문).
+- `features`가 EXECUTE에 그대로 넘어간다: `class[]` → `build_composed_room.cs`의 `FEATURE_TYPES`, `id[]` → `verify_composition.cs`의 `FEATURE_IDS`.
 
 ## 참고 (업계 표준 출처)
 - Unity 씬 계층 정리: [Game Dev Beginner — How to structure your Unity project](https://gamedevbeginner.com/how-to-structure-your-unity-project-best-practice-tips/), [Unity Learn — Organizing your Scene](https://learn.unity.com/course/3d-game-kit-lite/tutorial/organizing-your-scene)

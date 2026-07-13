@@ -76,8 +76,10 @@ generated feature component on a GameObject under `===== FEATURES =====`; builds
 organizes the standard hierarchy (contract §1); saves; registers `Client`+`<Room>` in EditorBuildSettings.
 
 - ⚠️ **Never `EditorOnly`-tag a folder parent that holds children** (children get build-excluded — contract §1). The script leaves headers untagged.
-- Confirm the log line: `C1=True C3online=True C3offline=True RoomCore=True feature(<Class>)Added=True`. If
-  `feature ... NOT found`, the `.cs` didn't compile — return to Phase A.
+- Confirm the log line: `C1=True C3online=True C3offline=True RoomCore=True feature(<Class>)Added=True
+  sceneIdsGenerated=1`. If `feature ... NOT found`, the `.cs` didn't compile — return to Phase A. If
+  `sceneIdsGenerated=0` (or `-1`), FishNet SceneId assignment failed → the avatar will silently not spawn later
+  (contract §1); do not proceed until it reports ≥1.
 
 ---
 

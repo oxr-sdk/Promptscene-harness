@@ -1,0 +1,10 @@
+{
+  "roomName": "ComposedRoom_1",
+  "mode": "create",
+  "request": "측정 도구 있는 룸 만들어줘",
+  "features": [
+    { "id": "ruler", "class": "RulerContent", "params": {} }
+  ],
+  "unresolved": [],
+  "conflicts": []
+}

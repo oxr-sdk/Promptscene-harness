@@ -112,7 +112,14 @@ public class SC_BuildFeatureRoom {
         Re(featGo, feats);
         foreach(var n in new[]{"Floor","Wall_N","Wall_S","Wall_E","Wall_W","Directional Light","Main Camera"}) Re(Find(n),env);
 
-        // 9) save + register in EditorBuildSettings
+        // 9) Assign FishNet scene-object ids DETERMINISTICALLY, then save + register in EditorBuildSettings.
+        //    ⚠️ A scene created+saved entirely within one script-execute does NOT reliably trigger FishNet's
+        //    automatic SceneId generation — the spawner's NetworkObject can save as SceneId=0/IsSceneObject=false,
+        //    and the dedicated server then silently fails to spawn the player avatar (room joins, lobby dissolves,
+        //    spawner replicates, but NO Desktop(Clone)). Reproduce Tools/Fish-Networking/Utility/Reserialize
+        //    NetworkObjects: CreateSceneId(force) + ReserializeEditorSetValues (both internal → reflection).
+        //    (Discovered + fixed 2026-07-13 while building compose-room; see contract §1.)
+        int sceneIdChanged = SC_AssignFishNetSceneIds(scn);
         EditorSceneManager.MarkSceneDirty(scn);
         EditorSceneManager.SaveScene(scn, roomPath);
         var scenes=EditorBuildSettings.scenes.ToList();
@@ -122,6 +129,22 @@ public class SC_BuildFeatureRoom {
 
         Debug.Log("[SC_BuildFeatureRoom] room="+ROOM+" C1="+c1+" C3online="+c3a+" C3offline="+c3b
             +" RoomCore="+(rcType!=null)+" feature("+FEATURE_TYPE+")Added="+featAdded
+            +" sceneIdsGenerated="+sceneIdChanged
             +" buildSettings=["+string.Join(",",EditorBuildSettings.scenes.Select(s=>System.IO.Path.GetFileNameWithoutExtension(s.path)))+"]");
+    }
+
+    // Reflection call into FishNet's internal SceneId generator (same as the Reserialize NetworkObjects tool).
+    // Returns the number of scene NetworkObjects whose SceneId was (re)generated. See contract §1 (2026-07-13).
+    static int SC_AssignFishNetSceneIds(UnityEngine.SceneManagement.Scene scn){
+        var nobT = AppDomain.CurrentDomain.GetAssemblies().SelectMany(a=>{ try{return a.GetTypes();}catch{return new Type[0];} })
+            .FirstOrDefault(t=>t.FullName=="FishNet.Object.NetworkObject");
+        if(nobT==null){ Debug.LogError("[SC] FishNet.Object.NetworkObject not found — SceneIds NOT assigned"); return -1; }
+        var createSceneId = nobT.GetMethod("CreateSceneId", BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public);
+        var reserialize   = nobT.GetMethod("ReserializeEditorSetValues", BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public);
+        if(createSceneId==null || reserialize==null){ Debug.LogError("[SC] FishNet CreateSceneId/Reserialize not found"); return -1; }
+        var args = new object[]{ scn, true, 0 };                       // (Scene, bool force, out int changed)
+        var nobs = createSceneId.Invoke(null, args) as System.Collections.IEnumerable;
+        foreach(var nob in nobs){ reserialize.Invoke(nob, new object[]{true,false}); EditorUtility.SetDirty((UnityEngine.Object)nob); }
+        return (int)args[2];
     }
 }
