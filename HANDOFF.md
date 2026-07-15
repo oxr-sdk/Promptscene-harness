@@ -47,7 +47,7 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 | 1 | 계약 규격 | ✅ |
 | 2 | Ruler를 계약 위에 클린 재구현(파일럿) | ✅ |
 | 2.5 | 씬 계층 표준화 | ✅ |
-| 3 | 런치패드 UI(registry→아이콘 그리드→SetEnabled) | ⬜ **보류/롤백** — 회고 [promptscene/docs/promptscene-launchpad-attempt.md](promptscene/docs/promptscene-launchpad-attempt.md) |
+| 3 | 런치패드 UI(registry→아이콘 그리드→SetEnabled) | ⬜ **보류/롤백** — 회고 [promptscene/docs/promptscene-launchpad-attempt.md](promptscene/docs/promptscene-launchpad-attempt.md). 단, 최소 플레이 HUD(`RulerHudUI`, registry→토글+클리어, IMGUI)는 2026-07-15 추가·검증(아이콘 그리드 런치패드는 아님) — §5·build-desktop-client §9 |
 | 4 | `/scaffold-content` 스킬화 + LLM 신규 기능 생성 템플릿 | ✅ **라이브 검증(2026-07-09)**, 샘플 `ClickSpawnerContent`로 §5+§6.5 PASS |
 | 5 | `/compose-room` 합성 스킬 + 합성 하네스 | ✅ **라이브 검증(2026-07-13)**, `ComposedRoom_1`(Ruler)로 §5+§6.5 PASS |
 
@@ -63,8 +63,9 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 
 - **M0 멀티플레이 실증 (프론티어 "멀티플레이 실증" 닫힘):** 에디터 클라 + **빌드된 Windows 데스크톱 클라**(2번째 클라, ParrelSync 없이) 2인을 localhost로 붙여 §6.5 확장 신호(①자기 IsOwner=True ②원격 Clone IsOwner=False ③위치 전파)를 **양측 시점**(에디터=리플렉션, exe=`-logFile`)에서 라이브 판정. 두 아바타 ObjId 교차 일치. 실체: arg 게이트 자동조인 하네스 `Assets/PromptScene/Harness/AutoJoinClient.cs`. 절차·함정 신규 문서 [build-desktop-client.md](promptscene/docs/build-desktop-client.md).
 - **M1 Ruler 결과값 공유 (D4 왼쪽 열 실증):** RoomCore의 `INetSpawn`을 **FishNet 백엔드 `FishNetSpawn`**으로 실체화(계약 §4.5 메커니즘 승격 — SYSTEMS 해동 아님) + Ruler 측정을 `RulerMeasurement` 프리팹(NetworkObject + FEATURE-내부 `RulerMeasurementView`)으로 네트워크 스폰. 끝점은 `[ObserversRpc(BufferLast)]`로 전파(INetSpawn.Spawn이 못 나르는 per-object 데이터). **생성·제거 양방향 전파** 확인. RulerContent는 여전히 Core만 참조.
-- **핵심 함정(문서 역기입됨, build-desktop-client §8):** ①서버 빌드가 `standaloneBuildSubtarget=Server`를 남겨 클라가 헤드리스(창 없음)로 나옴 → 클라 빌드 전 **Player 복구** ②하네스가 방 입장 시 파괴(C3 언로드) → `DontDestroyOnLoad` ③에디터 클라 활성 씬이 룸 씬이면 포트 7777 충돌 → **Client.unity 활성** ④실행 중 서버 exe 재빌드 불가(파일 락) → 종료 후 재빌드 ⑤빌드 완료 판정은 exe mtime 아님(`_Data/level0`·cfg) ⑥긴 블로킹 빌드/타깃 전환이 MCP 브리지 끊음 → 에디터 재시작.
+- **핵심 함정(문서 역기입됨, build-desktop-client §8):** ①서버 빌드가 `standaloneBuildSubtarget=Server`를 남겨 클라가 헤드리스(창 없음)로 나옴 → 클라 빌드 전 **Player 복구** ②하네스가 방 입장 시 파괴(C3 언로드) → `DontDestroyOnLoad` ③에디터 클라 활성 씬이 룸 씬이면 포트 7777 충돌 → **Client.unity 활성** ④실행 중 서버 exe 재빌드 불가(파일 락) → 종료 후 재빌드 ⑤빌드 완료 판정은 exe mtime 아님(`_Data/level0`·cfg) ⑥긴 블로킹 빌드/타깃 전환이 MCP 브리지 끊음 → 에디터 재시작 ⑦서버 재빌드는 cfg를 LAN IP로 되돌림 → localhost 테스트면 매번 교정.
 - (설계 결정: M1은 사용자 선택으로 **RoomCore INetSpawn 실체화** 경로. 계약 주석의 "Despawn 매핑은 RoomCore 구현 참조"와 부합.)
+- **수동 플레이 HUD(사람이 직접 몰기용):** 인게임 IMGUI 패널 `RulerHudUI`(룸 UI에 심음) — 레지스트리 순회로 콘텐츠별 ON/OFF 토글 + 측정 지우기 + 공유 카운트. `SimpleClickProvider`에 `SuppressWorldClick` 훅(HUD 클릭이 바닥 측정으로 새는 것 방지). `activeInputHandler=2(Both)`라 레거시 Input 클릭 동작. **클릭→네트워크 측정 스폰→공유** 라이브 검증. 런처 `Builds/App/play-2clients.ps1`. ⚠️ 이건 **Phase 3 런치패드(아이콘 그리드)가 아니라** "플레이 가능하게 하는 최소 UI" — 런치패드는 여전히 보류(§4). 절차·검증: build-desktop-client §9.
 
 ## 5b. 그 이전 세션(2026-07-13, Phase 5 관통)
 
