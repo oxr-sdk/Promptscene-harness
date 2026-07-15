@@ -1,0 +1,142 @@
+# XRCollabDemo — Windows 데스크톱 클라이언트 빌드 & 2-클라 멀티플레이 하네스 (검증된 절차)
+
+> 이 문서는 실제로 끝까지 돌려 검증한 절차입니다 (2026-07-14).
+> `build-meta-client.md`가 **Quest APK 클라**를, `build-xumlobby-server.md`가 **서버(.exe)**를 다룬다면, 이 문서는 그 짝인
+> **Windows 데스크톱 클라(.exe)** 빌드와, 그 클라로 **"2인이 서로를 본다"를 실증하는 멀티플레이 하네스**를 다룹니다.
+> 대상: `c:\J_0\XRCollabDemo`, Unity **6000.3.11f1**. 검증 룸: `ComposedRoom_1`(Ruler 포함).
+
+---
+
+## 0. 무엇을/왜 만드나
+
+에디터 클라 + **빌드된 데스크톱 클라** 2인을 한 머신(localhost)에서 붙여, ①서로의 아바타를 보고 ②소유권이 맞고
+③한쪽이 움직이면 상대 화면에서 위치가 바뀌는 것을 **양측 시점에서** 확인한다. ParrelSync 등 패키지 추가 없이
+(매니페스트 가드 대상) 2번째 클라를 **빌드된 exe**로 세운다. HANDOFF §8 프론티어 "멀티플레이 실증"이 이 절차로 닫힘.
+
+- 산출물: `Builds/App/Client/Win-Desktop/Client.exe` (~177MB, Player 서브타깃)
+- 접속 대상: 같은 머신의 Master 서버(`build-xumlobby-server.md`, cfg를 **127.0.0.1**로).
+
+---
+
+## 1. 사전 조건
+1. `build-xumlobby-server.md` §1의 1회성 프로젝트 수정이 끝나 **컴파일 0에러**.
+2. 룸(`ComposedRoom_1` 등)이 **EditorBuildSettings**에 있고, `R-RoomServer.DefaultScene`의 `_onlineScene`=룸, `_offlineScene`=`Client.unity` (C3).
+3. 서버(Master + Room)가 그 룸으로 빌드돼 있음(`build-xumlobby-server.md` §2, SceneList=룸). **서버·클라는 동일 `DefaultPrefabObjects`를 씀**(C1).
+
+---
+
+## 2. 빌드 절차 (MCP `script-execute`, `BuildPipeline.BuildPlayer` 직접)
+
+### 2.1 타깃 + 디파인 (1회)
+```csharp
+EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Standalone, BuildTarget.StandaloneWindows64);
+// 네트워킹 스택 디파인을 영구 추가 → 에디터 클라와 빌드 클라를 같은 코드경로에, 그리고 서버 빌더의
+// extraScriptingDefines가 활성 디파인의 부분집합이 되게(빌드 중 도메인 리로드 방지).
+var nbt = NamedBuildTarget.Standalone;
+PlayerSettings.SetScriptingDefineSymbols(nbt,
+  "FISHNET;FISHNET_V4;USE_XUM_LOBBY;USE_INPUT_SYSTEM_POSE_CONTROL;USE_STICK_CONTROL_THUMBSTICKS;UNITY_MCP_READY;UNIXR_USE_FISHNET;EDGEGAP_PLUGIN_SERVERS");
+AssetDatabase.SaveAssets();   // 재컴파일 대기(isCompiling==false) 후 진행
+```
+
+### 2.2 ⚠️⚠️ 서브타깃을 **Player**로 (가장 흔한 함정)
+```csharp
+EditorUserBuildSettings.standaloneBuildSubtarget = StandaloneBuildSubtarget.Player;   // NOT Server!
+```
+서버(Master/Room)를 `XumLobbyServerBuilderWindow`로 빌드하면 **`standaloneBuildSubtarget`이 `Server`로 바뀌고 지속**된다.
+그 상태로 클라를 빌드하면 **dedicated Server(헤드리스) 빌드**가 나와 **`Forcing GfxDevice: Null` → 창이 안 뜨고 렌더가 없다**
+(네트워킹은 정상이라 방엔 붙지만 화면이 없음). 서버 빌드 뒤 클라 빌드 전엔 **반드시 `Player`로 복구**. (증상: 실행해도 창 없음,
+`client.log`에 `Forcing GfxDevice: Null` / `Renderer: Null Device`. 정상이면 `Renderer: <GPU명>`, 프로세스에 MainWindow 존재.)
+
+### 2.3 씬 + cfg + 빌드
+```csharp
+var opts = new BuildPlayerOptions {
+  scenes = new[]{ "Assets/App/Scenes/Client.unity", "Assets/App/Scenes/ComposedRoom_1.unity" }, // Client=부트(0) + 룸
+  locationPathName = "Builds/App/Client/Win-Desktop/Client.exe",
+  target = BuildTarget.StandaloneWindows64, targetGroup = BuildTargetGroup.Standalone,
+  subtarget = (int)StandaloneBuildSubtarget.Player,     // 명시
+  options = BuildOptions.None };                        // extraScriptingDefines 없이(§2.1에서 박음)
+var r = BuildPipeline.BuildPlayer(opts);                // 메인스레드 블로킹 → MCP "Response data is null" 정상
+```
+- **접속 IP 정합(localhost)**: `Client.unity`의 `ClientToMasterConnector.serverIp`=`127.0.0.1`(직렬화, 씬 저장) + `Assets/StreamingAssets/application.cfg`에 `-mstMasterIp=127.0.0.1\n-mstMasterPort=5000\n-mstStartClientConnection=True`. (에디터 클라도 이 serverIp를 씀 — 씬 저장 필수, 안 하면 도메인 리로드로 되돌아감.)
+- **완료 판정**: exe mtime **아님**(신규 출력 경로면 생성되지만, 덮어쓰기 증분 빌드는 exe 스텁이 안 바뀜). **`Client_Data/globalgamemanagers`·`level0` mtime** 또는 `report.summary.result==Succeeded`로 판정. (서버 exe도 동일: `Room_Data/level0`·`application.cfg` mtime으로 판정 — `build-xumlobby-server.md`.)
+
+**성공 판정:** `result==Succeeded`, `Client_Data/globalgamemanagers` 갱신, `client.log`에 `Renderer: <GPU>`(≠Null).
+
+---
+
+## 3. 자동 조인 하네스 (`Assets/PromptScene/Harness/AutoJoinClient.cs`)
+
+빌드된 클라는 MCP `script-execute`로 몰 수 없다(그게 에디터 클라와의 차이). 그래서 **arg 게이트 하네스**를 Client.unity에 심어
+2번째 클라가 스스로 조인·이동·관측하게 한다. HANDOFF §8이 예고한 "자동 조인하는 2번째 클라"의 실체이며 SYSTEMS/FEATURE 아닌 **테스트 하네스**다.
+
+- **게이트**: `-psAutoJoin true`가 없으면 **휴면**(에디터/일반 플레이어 무영향). MST `Mst.Args.AsBool`은 **bare 플래그를 인식 못 함** → 값 `true` 필요.
+- **⚠️ `DontDestroyOnLoad` 필수**: 하네스는 Client.unity에 사는데, 방 입장 시 C3 규약으로 **Client.unity가 언로드되며 하네스도 파괴**된다. `armed`일 때 `DontDestroyOnLoad(gameObject)`로 씬 전환을 살아남게 해야 방에서 관측·이동이 된다. (안 하면 조인은 되나 자기 아바타/원격을 못 봄.)
+- 흐름: 마스터 접속 대기 → `SignInAsGuest` → `FindGames` → `MatchmakingBehaviour.StartMatch(games[0])` (검증된 `drive_matchmaking.cs`와 동일). 조인 후 자기 아바타(`NetworkObject.IsOwner==true`)를 찾아 이동(DummyController 비활성 후 transform 직접 세팅 — 입력 override 방지) + 매 2s 관측 로그.
+- **신원 충돌 없음**: 게스트 사인인은 **고유 GUID id**를 준다(같은 머신 2게스트도 충돌 안 함). `-mstRememberUser false`로 저장된 토큰 재사용도 회피. (build-meta-client §7의 게스트 충돌은 여기선 재현 안 됨 — 각기 다른 GUID.)
+
+실행:
+```powershell
+Client.exe -psAutoJoin true -mstRememberUser false -screen-width 1000 -screen-height 600 -screen-fullscreen 0 -logFile client2.log
+```
+
+---
+
+## 4. 2-클라 실증 절차 (검증됨)
+
+1. **서버 cfg를 localhost로**: `MasterAndSpawner/application.cfg`·`Room/application.cfg`의 `mstMasterIp`/`mstRoomIp`를 `127.0.0.1`로. (빌더는 LAN IP를 자동 감지해 박으므로 매 재빌드 후 교정.)
+2. **서버 기동**: `MasterAndSpawner.exe` → (7s) `Room.exe`. `room.log`에 `Online Scene: <룸>` + `Room registered successfully ... RoomIp:127.0.0.1`.
+3. **standalone 클라**: 위 실행줄로. `client2.log`에 `become a player` / `MUTUAL_VISIBLE` 관측.
+4. **에디터 클라**: ⚠️ **활성 씬을 `Client.unity`로** 열고(Single) Play. 활성 씬이 룸 씬(예: ComposedRoom_1)이면 그 씬의 R-RoomServer가 **자기 룸 서버를 7777에 띄우려다 standalone Room.exe와 포트 충돌**(Bind exception)해 깨끗한 클라가 안 된다. 그다음 `SignInAsGuest`→`FindGames`→`StartMatch`(에디터는 MCP로 구동 — `drive_matchmaking.cs`).
+5. **판정(§6.5 확장 — 아래)**.
+
+---
+
+## 5. §6.5 확장 — 멀티플레이 상호 가시 신호 (2클라)
+
+기존 §6.5(build-working-room)의 1인 신호에 더해, **각 클라 시점**에서:
+
+| # | 신호 | 에디터 시점(리플렉션 리드백) | exe 시점(-logFile) |
+|---|---|---|---|
+| ① | 자기 아바타 `IsOwner=True` | `Desktop(Clone)` OWN | `OBSERVE ... self(IsOwner=true)=1` |
+| ② | 원격 아바타 Clone `IsOwner=False` 존재 | 두 번째 `Desktop(Clone)` REMOTE | `remote(IsOwner=false)=1` `MUTUAL_VISIBLE=True` |
+| ③ | 원격 위치가 상대 이동에 따라 변함 | 원격 `transform.position`이 시간에 따라 변함 | 원격 ObjId의 `pos=` 가 상대 이동에 따라 변함 |
+
+두 클라의 `ObjectId`가 교차 일치해야 한다(A의 OWN = B의 REMOTE, 반대도). `room.log`엔 두 클라 각각 `become a player`.
+**실측(2026-07-14)**: 에디터=ObjId 12373, standalone=36202가 서로를 IsOwner=False로 관측, 위치 오실레이션/이동 양방향 반영.
+실증 기록(에디터 시점, 두 아바타 한 화면): [screenshots/m0-two-clients-mutual-visibility.png](screenshots/m0-two-clients-mutual-visibility.png).
+
+---
+
+## 6. Ruler 결과값 공유(M1) — 공유 스폰 검증 신호
+
+`ComposedRoom_1`의 Ruler는 측정을 **네트워크 스폰**한다(아래 §7). 검증:
+- 한 클라가 측정 생성 → 다른 클라가 **RulerMeasurementView**(선+거리라벨)를 **IsOwner=False**로 관측(끝점까지 전파 → 선 렌더). **양방향**.
+- 한 클라가 `ClearAll` → 모든 측정 디스폰이 **양측 전파**(교차 소유 despawn: `RequireOwnership=false`).
+- 하네스 로그의 `MEASUREMENTS=N` 카운트로 exe측 판정. **실측(2026-07-15)**: 에디터 생성→standalone 1→2, standalone 자가생성→에디터 관측, 에디터 ClearAll→양측 2→0. 실증 기록(공유 룰러 선+거리 라벨): [screenshots/m1-shared-ruler-measurement.png](screenshots/m1-shared-ruler-measurement.png).
+
+---
+
+## 7. 관련 코드 (런타임 — XRCollabDemo, 이 레포 밖)
+
+- `Assets/PromptScene/Core/RoomCore.cs` — `INetSpawn`을 **FishNet 백엔드 `FishNetSpawn`**으로: `Spawn`→`XumNetwork.Instantiate(nob,p,r,ownerConn)`(클라는 ServerRpc 왕복·null 반환), `Despawn`→서버면 `ServerManager.Despawn`·클라면 `INetDespawnRequest.RequestServerDespawn()`(XumNet엔 Despawn 심볼 없음). 오프라인이면 로컬 Instantiate 폴백. 메커니즘 승격(계약 §4.5)이라 SYSTEMS 해동 아님.
+- `Assets/PromptScene/Core/Contracts.cs` — `INetDespawnRequest`(비서버 클라가 서버 디스폰 요청 — INetSpawn을 제네릭하게 유지).
+- `Assets/PromptScene/Content/Ruler/RulerMeasurementView.cs` — 프리팹의 FEATURE-내부 NetworkBehaviour: `[ServerRpc] SubmitEndpoints`→`[ObserversRpc(BufferLast=true)] BroadcastEndpoints`로 두 끝점 전파(late-join 대응) + 선/라벨 구성 + despawn RPC. `INetSpawn.Spawn(prefab,pos,rot)`이 못 나르는 **per-object 데이터**를 여기서 처리.
+- `Assets/PromptScene/Content/Ruler/RulerContent.cs` — `IsNetworked`면 `core.Net.Spawn(measurementPrefab)` + 끝점 stash, 아니면 로컬 폴백. `ClearAll`은 씬의 `RulerMeasurementView`를 열거해 despawn(클라 스폰은 null 반환이라 핸들이 없음). **여전히 PromptScene.Core만 참조**.
+- `RulerMeasurement.prefab` — 루트 NetworkObject + RulerMeasurementView. **DefaultPrefabObjects에 등록(C1)** — FishNet auto-populate로 자동 추가됨(에셋 PrefabId 65535는 정상, 런타임에 컬렉션 인덱스로 할당). ComposedRoom_1의 RulerContent에 할당.
+
+---
+
+## 8. 함정 요약 (하네스가 알아야 함)
+
+| # | 함정 | 대응 |
+|---|---|---|
+| A | **서버 빌드가 subtarget을 Server로 남김** → 이어진 클라가 헤드리스(창 없음) | 클라 빌드 전 `standaloneBuildSubtarget=Player` 복구 + `opts.subtarget=Player` 명시 |
+| B | **하네스가 방 입장 시 파괴됨**(Client.unity 언로드, C3) | `armed`일 때 `DontDestroyOnLoad` |
+| C | **에디터 클라의 활성 씬이 룸 씬이면 포트 7777 충돌** | 에디터 Play 전 활성 씬을 `Client.unity`로 |
+| D | **긴 블로킹 빌드/타깃 전환이 MCP 브리지를 끊음**(`Response data is null` 지속) | 에디터 재시작(unity-mcp-server는 유지)해 재연결. 타깃 전환 후 첫 빌드가 특히 위험 |
+| E | **서버 실행 중엔 그 서버 exe 재빌드 불가**(`Assembly-CSharp.pdb ... user-mapped section open`) | 서버 재빌드 전 `MasterAndSpawner`/`Room` 프로세스 **종료** |
+| F | **완료 판정에 exe mtime 쓰면 오판**(증분 빌드는 exe 스텁 불변) | `_Data/level0`·`globalgamemanagers`·`application.cfg` mtime 또는 `BuildReport.result` |
+| G | **`Mst.Args.AsBool`은 bare 플래그 미인식** | `-psAutoJoin true`처럼 값 전달 |
+| H | 빌더가 cfg에 **LAN IP 자동 기입** | localhost 테스트면 매 재빌드 후 cfg의 IP를 `127.0.0.1`로 교정 |
+
+> **정직 계약:** 이 절차의 증명 범위는 **2클라 상호 가시 + 측정 결과값(생성/제거) 전파**까지. 그랩(소유권 이전), 채팅, 3인+, 실기기(Quest) 2클라는 밖(D4 1·2단계, 프론티어).
