@@ -61,7 +61,8 @@ namespace PromptScene.Core
 {
     public interface IRoomUserState { string MultiScaleName { get; } }
     public interface IInteraction { void AddClick(Action<RaycastHit> onClick); void RemoveClick(Action<RaycastHit> onClick); }
-    public interface INetSpawn { bool IsNetworked { get; } GameObject Spawn(GameObject prefab, Vector3 p, Quaternion r); void Despawn(GameObject instance); } // Despawn: Spawn으로 만든 인스턴스만 넘길 것 — 서버 권한에서 네트워크 디스폰(+ 로컬 파괴) 처리
+    public interface INetSpawn { bool IsNetworked { get; } GameObject Spawn(GameObject prefab, Vector3 p, Quaternion r); void Despawn(GameObject instance); } // Despawn: Spawn으로 만든 인스턴스만. v0.2에서 FishNet 백엔드로 실체화(RoomCore.FishNetSpawn) — 아래 주석
+    public interface INetDespawnRequest { void RequestServerDespawn(); } // 네트워크 스폰된 인스턴스가 구현: 비서버 클라가 서버에 디스폰 요청(ServerRpc). INetSpawn.Despawn을 제네릭하게 유지(SYSTEMS가 FEATURE를 모름). XumNet엔 Despawn 심볼 없음 → FishNet ServerManager.Despawn 경유.
 
     // v0.2: 서비스는 프로퍼티로 열거하지 않고 TryGet<T>로 조회한다. 서비스가 늘어도 IRoomCore는 안 바뀐다.
     public interface IRoomCore
@@ -88,7 +89,8 @@ namespace PromptScene.Core
 }
 ```
 
-구현 파일: `Core/Contracts.cs`, `Core/RoomContentRegistry.cs`, `Core/SimpleClickProvider.cs`(데스크톱 클릭→레이캐스트, IInteraction), `Core/RoomCore.cs`(MonoBehaviour, `RoomCore.Instance`). `RoomCore`는 `Awake`에서 내장 서비스 3종(`IInteraction`=SimpleClickProvider, `INetSpawn`, `IRoomUserState`)을 `Type→object` 딕셔너리에 `RegisterService`로 담고, FEATURE는 `TryGet`으로 꺼낸다.
+구현 파일: `Core/Contracts.cs`, `Core/RoomContentRegistry.cs`, `Core/SimpleClickProvider.cs`(데스크톱 클릭→레이캐스트, IInteraction), `Core/RoomCore.cs`(MonoBehaviour, `RoomCore.Instance`). `RoomCore`는 `Awake`에서 내장 서비스 3종(`IInteraction`=SimpleClickProvider, `INetSpawn`=**`FishNetSpawn`**, `IRoomUserState`)을 `Type→object` 딕셔너리에 `RegisterService`로 담고, FEATURE는 `TryGet`으로 꺼낸다.
+> **INetSpawn 실체화(2026-07-14, 계약 §4.5 메커니즘 승격 — SYSTEMS 해동 아님):** 파일럿의 `LocalNetSpawn`(IsNetworked=false)을 **`FishNetSpawn`**으로 교체. `Spawn`→`XumNetwork.Instantiate(nob,p,r,ownerConn)`(클라는 ServerRpc 왕복·**null 반환**), `Despawn`→서버면 `ServerManager.Despawn`·클라면 `INetDespawnRequest`. 네트워크 없으면 로컬 Instantiate 폴백. **주의(narrowness):** `Spawn(prefab,pos,rot)`은 **per-object 데이터를 못 나른다**(클라 null 반환이라 초기화 핸들도 없음). 그래서 결과값(예: 룰러 두 끝점)은 **FEATURE 프리팹의 내부 NetworkBehaviour**(SyncVar/RPC)가 나른다 — 계약 §1이 "모듈 내부는 자유"라 명시하므로 그 컴포넌트는 FishNet을 직접 써도 되고, 등록되는 `IToggleableContent`(RulerContent)는 여전히 `PromptScene.Core`만 참조한다. 실증: Ruler 결과값 공유(생성·제거 양방향 전파), [build-desktop-client.md](build-desktop-client.md) §6·§7.
 **우아한 실패(graceful failure)**: FEATURE는 `OnRegister`에서 필요한 서비스를 `TryGet`으로 확보하되, 실패 시 `Debug.LogWarning($"[{Id}] required service {nameof(IInteraction)} not available — feature stays disabled")`를 남기고 **비활성 상태를 유지**한다(예외·NullReference 금지). 이 패턴은 Phase 4 템플릿의 표준 동작이다.
 첫 FEATURE: `Content/Ruler/RulerContent.cs` (`IToggleableContent`).
 
