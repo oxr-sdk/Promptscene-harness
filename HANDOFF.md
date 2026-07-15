@@ -109,7 +109,7 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 - **PlayerSpawner는 프리팹으로:** `Assets/PromptScene/Prefabs/Room-PlayerSpawner.prefab`. 스크립트로 NetworkObject 만들면 scene id 무효 → "Failed to confirm access"로 입장 거부. — architecture 메모리 / build-working-room.
 - **콜드 Room 빌드는 10분+**, 그동안 MCP 전부 블로킹("Response data is null"). **행 아님** — 파일시스템(level0/cfg LastWriteTime) 폴링으로 완료 판정, MCP 응답성으로 판단 금지.
 - **새 `.cs` 추가 직후 빌드 실패** 가능(`scripts are compiling`) — `EditorApplication.isCompiling==false` 확인 후 빌드.
-- **입력은 신형 Input System 전용**(`activeInputHandler=1`): 레거시 `UnityEngine.Input` 예외 → `Mouse.current...`. uGUI 클릭엔 `InputSystemUIInputModule` 필요.
+- **입력 핸들링은 현재 `activeInputHandler=2`(Both)** (2026-07-15 실측, §5): 레거시 `UnityEngine.Input`과 신형 Input System이 **둘 다 동작** → `SimpleClickProvider`의 레거시 `Input.GetMouseButtonDown`·룰러 HUD 클릭이 정상. ⚠️ 단 **New 전용(=1)로 바꾸면**(build-meta-client §2.4-E: Android 빌드 경고 회피용) 레거시 `UnityEngine.Input`이 예외를 던짐 → `Mouse.current...`로 포팅 필요(`DummyController`는 이미 포팅됨), uGUI 클릭엔 `InputSystemUIInputModule` 필요.
 - **전용 서버 실행순서:** `MasterAndSpawner.exe` → (6s) `Room.exe` → 그다음 에디터 Play. 서버 안 켜고 Play만 = 로비에서 안 넘어감.
 - **이 머신 `python3`은 Store 스텁** — 스크립트는 `python`/`py`를 써야 실제로 돈다.
 
