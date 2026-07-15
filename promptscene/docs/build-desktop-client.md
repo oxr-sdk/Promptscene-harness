@@ -140,3 +140,14 @@ Client.exe -psAutoJoin true -mstRememberUser false -screen-width 1000 -screen-he
 | H | 빌더가 cfg에 **LAN IP 자동 기입** | localhost 테스트면 매 재빌드 후 cfg의 IP를 `127.0.0.1`로 교정 |
 
 > **정직 계약:** 이 절차의 증명 범위는 **2클라 상호 가시 + 측정 결과값(생성/제거) 전파**까지. 그랩(소유권 이전), 채팅, 3인+, 실기기(Quest) 2클라는 밖(D4 1·2단계, 프론티어).
+
+---
+
+## 9. 수동 플레이 (인게임 HUD)
+
+사람이 직접 몰아보려면 룰러를 켜고/지우는 UI가 필요하다(자동조인 하네스는 아바타를 하이재킹하므로 수동 플레이엔 부적합 — 수동은 auto-join 없이 로비에서 직접 입장).
+
+- **`Assets/PromptScene/Content/Ruler/RulerHudUI.cs`** — 룸 씬 `===== UI =====`의 얇은 IMGUI 패널(런치패드 아님). 레지스트리의 `Toggleable`을 순회해 콘텐츠마다 ON/OFF 버튼 + "측정 지우기(Clear)" + 공유 측정 카운트 + 조작 안내. 헤드리스 서버는 OnGUI 미호출이라 클라에서만 뜬다.
+- **`Core/SimpleClickProvider.cs`** — `public static bool SuppressWorldClick` 추가(제네릭 메커니즘). HUD가 커서를 자기 패널 위에 두는 동안 이 플래그를 켜서 **버튼 클릭이 바닥 레이캐스트로 새지 않게** 한다(uGUI `IsPointerOverGameObject`는 IMGUI를 못 막으므로). `activeInputHandler=2(Both)`라 레거시 `Input.GetMouseButtonDown`이 동작(HUD/클릭 검증됨 2026-07-15).
+- **런처**: `Builds/App/play-2clients.ps1` — 서버 cfg를 localhost로 교정 + Master/Room 기동 + 클라 2개 실행(auto-join 없이). 각 창에서 Guest 로그인→방 입장→HUD로 룰러 ON→바닥 두 지점 클릭=측정(양쪽 공유), 이동 WASD.
+- **검증(2026-07-15)**: HUD 렌더 + 룰러 토글 ON + **클릭 두 지점→네트워크 측정 스폰**(SimpleClickProvider→RulerContent.OnClick→core.Net.Spawn) + Clear→측정 0. 스크린샷: [screenshots/hud-play.png](screenshots/hud-play.png).
