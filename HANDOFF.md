@@ -9,7 +9,7 @@
 > [promptscene/docs/ARCHITECTURE.md](promptscene/docs/ARCHITECTURE.md)(설계) → [promptscene/docs/promptscene-content-contract.md](promptscene/docs/promptscene-content-contract.md)(규격 SSOT).
 > 작업 중 막히면 `oxr-docs-routing` 스킬의 라우팅표를 따른다(아래 §6).
 >
-> **최종 갱신:** 2026-07-13.
+> **최종 갱신:** 2026-07-15.
 
 ---
 
@@ -59,7 +59,14 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 
 **정직 계약:** 하네스는 **§5 구조/계약 적합성만** 증명한다. 기능의 실제 동작·미감은 **비검증**(사람/비전 루프 필요).
 
-## 5. 직전 세션(2026-07-13, Phase 5 관통)
+## 5. 직전 세션(2026-07-14~15, 멀티플레이 실증 + Ruler 결과값 공유)
+
+- **M0 멀티플레이 실증 (프론티어 "멀티플레이 실증" 닫힘):** 에디터 클라 + **빌드된 Windows 데스크톱 클라**(2번째 클라, ParrelSync 없이) 2인을 localhost로 붙여 §6.5 확장 신호(①자기 IsOwner=True ②원격 Clone IsOwner=False ③위치 전파)를 **양측 시점**(에디터=리플렉션, exe=`-logFile`)에서 라이브 판정. 두 아바타 ObjId 교차 일치. 실체: arg 게이트 자동조인 하네스 `Assets/PromptScene/Harness/AutoJoinClient.cs`. 절차·함정 신규 문서 [build-desktop-client.md](promptscene/docs/build-desktop-client.md).
+- **M1 Ruler 결과값 공유 (D4 왼쪽 열 실증):** RoomCore의 `INetSpawn`을 **FishNet 백엔드 `FishNetSpawn`**으로 실체화(계약 §4.5 메커니즘 승격 — SYSTEMS 해동 아님) + Ruler 측정을 `RulerMeasurement` 프리팹(NetworkObject + FEATURE-내부 `RulerMeasurementView`)으로 네트워크 스폰. 끝점은 `[ObserversRpc(BufferLast)]`로 전파(INetSpawn.Spawn이 못 나르는 per-object 데이터). **생성·제거 양방향 전파** 확인. RulerContent는 여전히 Core만 참조.
+- **핵심 함정(문서 역기입됨, build-desktop-client §8):** ①서버 빌드가 `standaloneBuildSubtarget=Server`를 남겨 클라가 헤드리스(창 없음)로 나옴 → 클라 빌드 전 **Player 복구** ②하네스가 방 입장 시 파괴(C3 언로드) → `DontDestroyOnLoad` ③에디터 클라 활성 씬이 룸 씬이면 포트 7777 충돌 → **Client.unity 활성** ④실행 중 서버 exe 재빌드 불가(파일 락) → 종료 후 재빌드 ⑤빌드 완료 판정은 exe mtime 아님(`_Data/level0`·cfg) ⑥긴 블로킹 빌드/타깃 전환이 MCP 브리지 끊음 → 에디터 재시작.
+- (설계 결정: M1은 사용자 선택으로 **RoomCore INetSpawn 실체화** 경로. 계약 주석의 "Despawn 매핑은 RoomCore 구현 참조"와 부합.)
+
+## 5b. 그 이전 세션(2026-07-13, Phase 5 관통)
 
 - **`/compose-room` 스킬 신설**(`promptscene/skills/compose-room/`): SKILL.md(PARSE→RESOLVE→PLAN→EXECUTE→VERIFY) + 자산 2종(`build_composed_room.cs` N기능 조립, `verify_composition.cs` N기능 §5 판정). 설계 확정: compose-room은 **오케스트레이터** — 신규 담당은 ①자연어→기능 선택 ②부품 조율+최종 판정뿐, 조립은 assemble-room·scaffold-content **참조 호출**(절차 복제 금지, SSOT). PLAN은 `composition-plan.json`으로 박제(계획 vs 실행 문제 분리), unresolved/conflict 시 정지·질문.
 - **관통 검증 PASS**: "측정 도구 있는 룸 만들어줘" → Ruler(Category 측정) 선택 → `ComposedRoom_1` 조립 → Room.exe 재빌드 → 서버+에디터 클라 조인 → **§6.5 4신호 전부**(become-a-player / 로비 소멸+MovedObjectsHolder / Desktop(Clone) IsOwner=True / DummyController+헤드팔로워+NetworkTransform) + **§5 COMPOSITION PASS**(ruler 자기등록·SetEnabled 무예외·Meta 룰러/측정).
@@ -117,8 +124,8 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 3. **compose-room 확장 여지(v1은 최소 관통):** `mode:"extend"`(기존 룸에 기능 추가), 다기능 합성(2개+) 실증, 파라미터(`params`) 실제 전달, MutuallyExclusive 충돌 케이스 실증.
 
 **Phase 5 이후에도 남은 프론티어(launchpad 회고에서 이월):**
-- **멀티플레이 실증:** 지금껏 "1인 + 서버"만 검증(compose-room 관통도 1인). 자동 조인하는 2번째 클라(또는 사람 수동 실행)로 "서로 보이는" 그림을 실제로 만들어야 함.
-- **플레이테스트 하네스:** 게임 로직 "정확성"은 구조 하네스로 안 됨 → **시뮬 플레이어 N명** 플레이테스트 하네스가 필요(프론티어).
+- ✅ **멀티플레이 실증 — 닫힘(2026-07-14~15).** 에디터 클라 + 빌드된 데스크톱 클라 2인이 서로의 아바타를 보고, Ruler 결과값(측정)이 양방향 전파됨을 라이브 증명. 실체: `AutoJoinClient.cs` 하네스 + [build-desktop-client.md](promptscene/docs/build-desktop-client.md). (다음 등급 D4-1 잡기 소유권·D4-2 예측은 여전히 밖.)
+- **플레이테스트 하네스:** 게임 로직 "정확성"은 구조 하네스로 안 됨 → **시뮬 플레이어 N명** 플레이테스트 하네스가 필요(프론티어). (2클라 하네스가 그 첫 벽돌 — N명·시뮬 입력·판정으로 확장 여지.)
 - **시각화 우선:** 진행도/역할/결과를 화면에 띄우기(로그 말고).
 - **미감 루프:** 스크린샷 → 비전/사람 승인 없이는 "이쁘게" 자동 달성 불가.
 - **런치패드 은유 재고:** 방마다 UI 컨셉이 다를 텐데 아이콘 그리드가 맞는가?
