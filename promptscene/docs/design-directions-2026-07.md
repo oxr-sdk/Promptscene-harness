@@ -85,6 +85,10 @@ COMPOSITION만 안다. (UE5 GameMode / 미디에이터 패턴과 동일.)
   > + ServerRpc `GiveOwnership`)가 기계를 이미 제공, client-auth `NetworkTransform`이
   > 소유권 이전 시 authority 승계. 접점은 `RequestOwnership()` 한 줄이라 FEATURE
   > 지역 감싸기로 충분(계약 승격은 두 번째 소비자 시점). 조사: [grab-ownership-survey.md](grab-ownership-survey.md).
+  > **실증됨(2026-07-16, M2):** `GrabbableProps` FEATURE(`GrabbableProp` 프리팹의
+  > `GrabbableView`가 `XumView.RequestOwnership` 직접 사용 — M1 `RulerMeasurementView`와
+  > 동형)로 2클라 잡기→놓기→핸드오버(Owner A→B→A)를 라이브 판정. 5신호 전부 PASS.
+  > SYSTEMS/계약 무수정. 결과·함정: [grab-ownership-survey.md](grab-ownership-survey.md) §실증.
 - **2단계 (대공사, 보류):** client-side prediction — 날아가는 공을 서로
   뺏는 연속 경합에만 필요. 얼려둔 SYSTEMS를 녹여 재검증해야 하는 공사.
   착수 전 확인 사항: FishNet의 prediction API가 XumNet 래퍼를 통과해

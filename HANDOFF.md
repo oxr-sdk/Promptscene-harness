@@ -59,7 +59,14 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 
 **정직 계약:** 하네스는 **§5 구조/계약 적합성만** 증명한다. 기능의 실제 동작·미감은 **비검증**(사람/비전 루프 필요).
 
-## 5. 직전 세션(2026-07-14~15, 멀티플레이 실증 + Ruler 결과값 공유)
+## 5. 직전 세션(2026-07-16 — M2 잡기 기반 소유권, D4-1 닫힘)
+
+- **M2 실증 (D4 1단계 "잡기 기반 소유권" 닫힘):** 새 FEATURE `GrabbableProps`(런타임 `Assets/PromptScene/Content/GrabbableProps/`)로 2클라 잡기→이동→놓기→**핸드오버(Owner A→B→A)**를 라이브 판정. **5신호 전부 PASS**(①A잡기 Owner=A 양측 ②A놓기 위치 전파+Owner 유지=비반납 ③B탈취 Owner=B ④B놓기 위치 전파 ⑤A재탈취 Owner=A, 공유 objId 양측 교차 일치). **SYSTEMS·계약 무수정** — 프리팹 `GrabbableProp`(NetworkObject+`XumView` Takeover+client-auth `NetworkTransform`+`GrabbableView`)의 뷰가 SDK `XumView.RequestOwnership`를 직접 사용(M1 `RulerMeasurementView`와 동형). C1: `DefaultPrefabObjects` 자동 등록 + Room.exe 재빌드. 검증 SSOT: [grab-ownership-survey.md](promptscene/docs/grab-ownership-survey.md) §실증.
+- **하네스 확장:** `AutoJoinClient`에 그랩 안무 추가(`-psGrabTest`/`-psGrabRole A|B`/`-psGrabEpoch` — 공유 에폭 타임라인). 런처 `Builds/App/play-grabtest.ps1`(서버+2클라, 직렬화 조인).
+- **핵심 함정(신규, 아래 §7):** ①클라 런타임 스폰은 `IsClientStarted` 뒤에(ClientId 유효만으로 부족 → 스폰 RPC 드롭) ②2 데스크톱 게스트 동시 조인 MST flakiness(2번째 게스트 sign-in/validation 미완 + 서버 2nd-connect NRE) — 그랩 결함 아님, 인프라. 신뢰 토폴로지는 에디터+1데스크톱.
+- **정직 범위:** 클릭 잡기·놓기·Takeover 핸드오버, 2인, 데스크톱, 비반납 모델까지 증명. **밖(알려진 한계):** VR 컨트롤러 그랩, 오너 이탈 중 잡힘 상태(NT 송신자 공백), 3인 동시 경합, 잡는 동안 원격 보간 품질, 예측(D4-2). 2클라 핸드오버는 **1회 클린 통과로 5신호 증명**했고 재현은 MST 게스트 flakiness로 불안정(1클라 스모크는 안정 재현).
+
+## 5a. 그 직전 세션(2026-07-14~15, 멀티플레이 실증 + Ruler 결과값 공유)
 
 - **M0 멀티플레이 실증 (프론티어 "멀티플레이 실증" 닫힘):** 에디터 클라 + **빌드된 Windows 데스크톱 클라**(2번째 클라, ParrelSync 없이) 2인을 localhost로 붙여 §6.5 확장 신호(①자기 IsOwner=True ②원격 Clone IsOwner=False ③위치 전파)를 **양측 시점**(에디터=리플렉션, exe=`-logFile`)에서 라이브 판정. 두 아바타 ObjId 교차 일치. 실체: arg 게이트 자동조인 하네스 `Assets/PromptScene/Harness/AutoJoinClient.cs`. 절차·함정 신규 문서 [build-desktop-client.md](promptscene/docs/build-desktop-client.md).
 - **M1 Ruler 결과값 공유 (D4 왼쪽 열 실증):** RoomCore의 `INetSpawn`을 **FishNet 백엔드 `FishNetSpawn`**으로 실체화(계약 §4.5 메커니즘 승격 — SYSTEMS 해동 아님) + Ruler 측정을 `RulerMeasurement` 프리팹(NetworkObject + FEATURE-내부 `RulerMeasurementView`)으로 네트워크 스폰. 끝점은 `[ObserversRpc(BufferLast)]`로 전파(INetSpawn.Spawn이 못 나르는 per-object 데이터). **생성·제거 양방향 전파** 확인. RulerContent는 여전히 Core만 참조.
@@ -112,6 +119,8 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 - **입력 핸들링은 현재 `activeInputHandler=2`(Both)** (2026-07-15 실측, §5): 레거시 `UnityEngine.Input`과 신형 Input System이 **둘 다 동작** → `SimpleClickProvider`의 레거시 `Input.GetMouseButtonDown`·룰러 HUD 클릭이 정상. ⚠️ 단 **New 전용(=1)로 바꾸면**(build-meta-client §2.4-E: Android 빌드 경고 회피용) 레거시 `UnityEngine.Input`이 예외를 던짐 → `Mouse.current...`로 포팅 필요(`DummyController`는 이미 포팅됨), uGUI 클릭엔 `InputSystemUIInputModule` 필요.
 - **전용 서버 실행순서:** `MasterAndSpawner.exe` → (6s) `Room.exe` → 그다음 에디터 Play. 서버 안 켜고 Play만 = 로비에서 안 넘어감.
 - **이 머신 `python3`은 Store 스텁** — 스크립트는 `python`/`py`를 써야 실제로 돈다.
+- **클라 런타임 네트워크 스폰은 `InstanceFinder.IsClientStarted` 뒤에(2026-07-16 M2):** `core.Net.Spawn`(→`XumNetwork.Instantiate`)을 룸 FishNet 클라가 완전히 active 되기 전에 부르면 스폰 ServerRpc가 "client is not active"로 **조용히 드롭**(오브젝트 안 뜸). `ClientId` 유효(마스터 링크)만으론 부족 — `IsClientStarted` 게이트 + 프롭 등장까지 재시도. `XumNetwork.Instantiate`는 클라에서 정상적으로 `HandleInstantiationServerRpc`로 서버 왕복하니 API는 문제 아님(스카우트 소스 확인). grab-ownership-survey §실증.
+- **2 데스크톱 게스트 동시 조인 = MST 인프라 flakiness(2026-07-16 M2):** 같은 머신 2번째 게스트가 `SignInAsGuest` 콜백 미완(signedIn 고착) 또는 룸 접근 검증 미완("just joined"인데 validated 안 됨)으로 조인 실패. 서버측 FishNet `ServerManager.Transport_OnServerConnectionState` NRE(2nd connection, 기존 데모 이슈)와 동반. **네트워크 기능 결함 아님.** 완화: 조인 직렬화(A player 확정 후 B 기동)+재시도. 신뢰 토폴로지는 M0/M1의 **에디터 클라 + 1 데스크톱 클라**.
 
 **교훈:** **가드는 "통과 테스트"가 아니라 "차단 재현"으로 검증한다** — python 스텁·세션 스코프·백슬래시 3건 모두 통과 테스트는 성공했으나 실전에서 fail-open이었음.
 
@@ -120,12 +129,15 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 > **설계 방향 기록:** 2026-07 아키텍처 토론의 결정 사항(사거리 재정의, COMPOSITIONS 층, 에셋 전략 등)은 [design-directions-2026-07.md](promptscene/docs/design-directions-2026-07.md)에 정리됨.
 
 **바로 이어서:**
-1. ✅ **완료** — Phase 5 `/compose-room` 관통(§5). 스킬 신설 커밋과 검증·문서 갱신 커밋을 분리해 기록.
-2. **로드맵 다음 순서(design-directions D5):** 닫기·Phase 5 완료 → **아픈 순서대로 D3(생성 에셋 파이프라인) 또는 D2(COMPOSITIONS 층)** → D4-1(잡기 소유권) → D4-2(예측). D2 착수 시점은 "서로 통신해야 하는 기능 2개"가 실제로 생길 때(지금 Ruler/ClickSpawner는 직교 → 수요 없음).
+1. ✅ **완료** — Phase 5 `/compose-room` 관통(§5a). 스킬 신설 커밋과 검증·문서 갱신 커밋을 분리해 기록.
+2. ✅ **완료** — **D4-1 잡기 기반 소유권(§5, 2026-07-16 M2).** `GrabbableProps` FEATURE로 2클라 핸드오버 5신호 PASS, SYSTEMS/계약 무수정.
+3. **로드맵 다음 순서(design-directions D5):** D4-1 완료 → **아픈 순서대로 D3(생성 에셋 파이프라인) 또는 D2(COMPOSITIONS 층)** → D4-2(예측). D2 착수 시점은 "서로 통신해야 하는 기능 2개"가 실제로 생길 때(지금 Ruler/ClickSpawner/GrabbableProps는 직교 → 수요 없음). ⚠️ 소유권 계약 승격(IRoomCore 헬퍼)은 **두 번째 잡기-소유권 소비자**가 실제로 생길 때 재검토(grab-ownership-survey 판정).
+4. **잡기 소유권 확장 여지(M2는 최소 관통):** VR 컨트롤러 그랩, 오너 이탈 중 잡힘 상태(NT 송신자 공백) 처리, 반납형 정책, 다중 소품, 3인 경합.
 3. **compose-room 확장 여지(v1은 최소 관통):** `mode:"extend"`(기존 룸에 기능 추가), 다기능 합성(2개+) 실증, 파라미터(`params`) 실제 전달, MutuallyExclusive 충돌 케이스 실증.
 
 **Phase 5 이후에도 남은 프론티어(launchpad 회고에서 이월):**
-- ✅ **멀티플레이 실증 — 닫힘(2026-07-14~15).** 에디터 클라 + 빌드된 데스크톱 클라 2인이 서로의 아바타를 보고, Ruler 결과값(측정)이 양방향 전파됨을 라이브 증명. 실체: `AutoJoinClient.cs` 하네스 + [build-desktop-client.md](promptscene/docs/build-desktop-client.md). (다음 등급 D4-1 잡기 소유권·D4-2 예측은 여전히 밖.)
+- ✅ **멀티플레이 실증 — 닫힘(2026-07-14~15).** 에디터 클라 + 빌드된 데스크톱 클라 2인이 서로의 아바타를 보고, Ruler 결과값(측정)이 양방향 전파됨을 라이브 증명. 실체: `AutoJoinClient.cs` 하네스 + [build-desktop-client.md](promptscene/docs/build-desktop-client.md).
+- ✅ **잡기 소유권(D4-1) — 닫힘(2026-07-16, M2).** 2클라 핸드오버(Owner A→B→A) 5신호 PASS. `GrabbableProps` FEATURE, SYSTEMS/계약 무수정. (D4-2 예측은 여전히 밖.) SSOT: [grab-ownership-survey.md](promptscene/docs/grab-ownership-survey.md) §실증.
 - **플레이테스트 하네스:** 게임 로직 "정확성"은 구조 하네스로 안 됨 → **시뮬 플레이어 N명** 플레이테스트 하네스가 필요(프론티어). (2클라 하네스가 그 첫 벽돌 — N명·시뮬 입력·판정으로 확장 여지.)
 - **시각화 우선:** 진행도/역할/결과를 화면에 띄우기(로그 말고).
 - **미감 루프:** 스크린샷 → 비전/사람 승인 없이는 "이쁘게" 자동 달성 불가.

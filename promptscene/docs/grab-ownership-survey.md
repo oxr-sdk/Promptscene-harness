@@ -103,3 +103,32 @@ FishNet 로직(동작 서술):
 ## 요약 한 줄
 
 그랩 = XR 이벤트 → `XumView.RequestOwnership()`(Takeover, ServerRpc) → FishNet `GiveOwnership`; 위치는 client-auth `NetworkTransform`이 새 오너 authority를 따라 자동 전파; 네트워크 실재; 소유권 코어(XumView)는 패키지로 이미 분리돼 추출성 높고, 앱엔 자동승인·비반납 정책만 하드코딩. **→ SYSTEMS/계약 확장 불필요, FEATURE 지역 감싸기로 충분.**
+
+---
+
+## 실증 (M2, 2026-07-16) — 판정이 예측대로 성립함
+
+위 판정("FEATURE 지역 감싸기로 충분")을 실제 구현·라이브 검증했다. 결과: **D4 1단계(잡기 소유권) 닫힘.**
+
+**구현체(런타임, XRCollabDemo `Assets/PromptScene/`):**
+- `Content/GrabbableProps/GrabbableProp.prefab` — 루트 `NetworkObject` + `XumView`(`ownershipMode`=Takeover=1) + FishNet `NetworkTransform`(client-auth 기본값: `_clientAuthoritative`/`_sendToOwner`/`_synchronizePosition`/`_synchronizeRotation`=true, `_interval`=1) + `GrabbableView`.
+- `Content/GrabbableProps/GrabbableView.cs` — 프리팹 내부 FishNet `NetworkBehaviour`(+`INetDespawnRequest`). 잡기=`XumView.RequestOwnership()`(IsMine면 생략), 이동=오너가 로컬 transform 구동→client-auth NT 전파, 놓기=추적 중지(**반납 없음** — 비반납 Takeover 모델). **M1 `RulerMeasurementView`와 동형**(네트워크 기계는 프리팹 내부, 계약 무수정).
+- `Content/GrabbableProps/GrabbableProps.cs` — `IToggleableContent`. `SetEnabled(true)`→`core.Net.Spawn`(INetSpawn)으로 프리팹 스폰(오너=스폰 클라), `false`→디스폰. **PromptScene.Core만 참조.** C1: `GrabbableProp`이 `DefaultPrefabObjects`에 자동 등록(FishNet auto-populate) + Room.exe 재빌드.
+
+**라이브 판정(2클라, 데스크톱, localhost, `ComposedRoom_1`).** 시간동기 에폭 기반으로 두 클라가 하나의 타임라인을 공유, 각자 `-logFile`에 프롭 `ownerId`/`isMine`/`pos`를 매초 기록. 공유 프롭 `objId` 양측 교차 일치. 5신호 전부 PASS:
+
+| # | 신호 | 관측 |
+|---|---|---|
+| ① | A 잡기 → Owner=A 양측 | A grab ownerBefore=0/isMine=True; B는 ownerId=0 관측 |
+| ② | A 이동·놓기 → B가 확정 위치 관측, Owner=A 유지(비반납) | A가 (-1.5,0.5,1.5)로 이동·놓기 ownerAfter=0; B가 그 위치 + ownerId=0 관측 |
+| ③ | B 탈취 → Owner=B (A도 확인) | B grab ownerBefore=0 → ownerId=1/isMine=True; **A가 같은 틱에 ownerId=1 관측** |
+| ④ | B 이동·놓기 → A가 위치 관측 | B가 (1.5,0.5,0.5)로 이동·놓기; A가 그 위치 관측 |
+| ⑤ | A 재탈취 → Owner=A | A `RequestOwnership` → 다음 틱 A ownerId=0/isMine=True **및 B도 ownerId=0 관측** |
+
+또 **1클라 스모크(=G2)**는 반복 재현 가능: 스폰→잡기(Owner=me)→이동→놓기→재탈취(이동 포함)→`SetEnabled(false)` 정리까지 클린. `RulerHudUI` 레지스트리 순회로 "잡기 소품" 토글 자동 노출.
+
+**함정(신규, 역기입):**
+1. **클라 런타임 스폰은 룸 FishNet 클라가 완전히 active(`InstanceFinder.IsClientStarted`)가 된 뒤에 해야 한다.** `ClientId` 유효(연결)만으로는 부족 — 마스터(MST) 링크만 붙고 룸 클라가 아직 접속 중이면 `XumNetwork.Instantiate`의 스폰 ServerRpc가 "client is not active"로 드롭됨(오브젝트 안 뜸). 스폰은 `IsClientStarted` 게이트 + 프롭 등장까지 재시도.
+2. **2 데스크톱 게스트 동시 접속은 MST에서 불안정**(같은 머신). 증상: 2번째 게스트가 ①`SignInAsGuest` 콜백 미완(signedIn=False 고착) 또는 ②룸 접근 검증 미완("just joined"인데 validated 안 됨), 서버측 FishNet `ServerManager.Transport_OnServerConnectionState` NRE(2번째 connection)와 동반. **잡기-소유권 결함 아님** — 조인 인프라 flakiness. 완화: 조인 직렬화(A가 player 된 뒤 B 기동) + 재시도. 신뢰 토폴로지는 M0/M1의 **에디터 클라 + 1 데스크톱 클라**.
+
+절차·런처: `Builds/App/play-grabtest.ps1`(서버+2클라, 에폭·직렬화 조인), 하네스 `Assets/PromptScene/Harness/AutoJoinClient.cs`(`-psGrabTest`/`-psGrabRole`/`-psGrabEpoch` 게이트).

@@ -138,8 +138,10 @@ Client.exe -psAutoJoin true -mstRememberUser false -screen-width 1000 -screen-he
 | F | **완료 판정에 exe mtime 쓰면 오판**(증분 빌드는 exe 스텁 불변) | `_Data/level0`·`globalgamemanagers`·`application.cfg` mtime 또는 `BuildReport.result` |
 | G | **`Mst.Args.AsBool`은 bare 플래그 미인식** | `-psAutoJoin true`처럼 값 전달 |
 | H | 빌더가 cfg에 **LAN IP 자동 기입** | localhost 테스트면 매 재빌드 후 cfg의 IP를 `127.0.0.1`로 교정 |
+| I | **클라 런타임 네트워크 스폰이 `IsClientStarted` 전에 드롭됨**(M2) | 스폰(`core.Net.Spawn`)은 `InstanceFinder.IsClientStarted` 게이트 뒤 + 프롭 등장까지 재시도. `ClientId` 유효만으론 부족 |
+| J | **2 데스크톱 게스트 동시 조인 flakiness**(M2: 2번째 sign-in/validation 미완 + 서버 2nd-connect NRE) | 조인 직렬화(A player 확정 후 B 기동)+재시도. 신뢰 토폴로지는 에디터+1데스크톱. 그랩 결함 아님 |
 
-> **정직 계약:** 이 절차의 증명 범위는 **2클라 상호 가시 + 측정 결과값(생성/제거) 전파**까지. 그랩(소유권 이전), 채팅, 3인+, 실기기(Quest) 2클라는 밖(D4 1·2단계, 프론티어).
+> **정직 계약:** 이 절차의 증명 범위는 **2클라 상호 가시 + 측정 결과값(생성/제거) 전파 + 잡기 소유권 핸드오버**(D4-1, §10)까지. 채팅, 3인+, 실기기(Quest) 2클라, 예측(D4-2)은 밖.
 
 ---
 
@@ -151,3 +153,15 @@ Client.exe -psAutoJoin true -mstRememberUser false -screen-width 1000 -screen-he
 - **`Core/SimpleClickProvider.cs`** — `public static bool SuppressWorldClick` 추가(제네릭 메커니즘). HUD가 커서를 자기 패널 위에 두는 동안 이 플래그를 켜서 **버튼 클릭이 바닥 레이캐스트로 새지 않게** 한다(uGUI `IsPointerOverGameObject`는 IMGUI를 못 막으므로). `activeInputHandler=2(Both)`라 레거시 `Input.GetMouseButtonDown`이 동작(HUD/클릭 검증됨 2026-07-15).
 - **런처**: `Builds/App/play-2clients.ps1` — 서버 cfg를 localhost로 교정 + Master/Room 기동 + 클라 2개 실행(auto-join 없이). 각 창에서 Guest 로그인→방 입장→HUD로 룰러 ON→바닥 두 지점 클릭=측정(양쪽 공유), 이동 WASD.
 - **검증(2026-07-15)**: HUD 렌더 + 룰러 토글 ON + **클릭 두 지점→네트워크 측정 스폰**(SimpleClickProvider→RulerContent.OnClick→core.Net.Spawn) + Clear→측정 0. 스크린샷: [screenshots/hud-play.png](screenshots/hud-play.png).
+
+---
+
+## 10. 잡기 소유권 핸드오버 (D4-1, M2 2026-07-16)
+
+멀티플레이 하네스를 **소유권 이전**까지 확장. `AutoJoinClient`에 그랩 안무를 추가해(arg 게이트) 2클라가 공유 에폭 타임라인 위에서 잡기 소품 하나를 A→B→A로 넘겨받고, 각자 `-logFile`에 프롭 `ownerId`/`isMine`/`pos`를 기록한다.
+
+- **런처**: `Builds/App/play-grabtest.ps1` — 서버 cfg localhost 교정 + Master/Room 기동 + **직렬화 조인**(A가 player 된 뒤 B 기동, 트랩 J 완화) + 공유 에폭(`-psGrabEpoch`) 주입.
+- **하네스 args**: `-psAutoJoin true -psGrabTest true -psGrabRole A|B -psGrabEpoch <unixMs>`. 역할 A=스폰+첫 잡기+재탈취+정리, B=탈취.
+- **판정 신호(5)**: ①A잡기 Owner=A 양측 ②A이동·놓기 위치 전파+Owner 유지(비반납) ③B탈취 Owner=B(A도 확인) ④B이동·놓기 위치 전파 ⑤A재탈취 Owner=A. 공유 `objId` 양측 교차 일치. **검증됨(2026-07-16, 5신호 PASS).**
+- **구현·함정 SSOT**: [grab-ownership-survey.md](grab-ownership-survey.md) §실증 (FEATURE `GrabbableProps`, 프리팹 `GrabbableProp`, `GrabbableView`가 `XumView.RequestOwnership` 직접 사용 — SYSTEMS/계약 무수정).
+- ⚠️ 2 데스크톱 게스트 동시 조인은 MST flakiness(트랩 J)로 재현이 불안정 — 그랩 로직 결함 아님. 1클라 스모크(스폰→잡기→이동→놓기→정리)는 안정 재현.
