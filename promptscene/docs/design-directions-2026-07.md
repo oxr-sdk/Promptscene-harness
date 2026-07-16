@@ -78,9 +78,13 @@ COMPOSITION만 안다. (UE5 GameMode / 미디에이터 패턴과 동일.)
 
 > **왼쪽 열 실증(2026-07-14):** Ruler 측정을 네트워크 스폰(RoomCore `FishNetSpawn` INetSpawn) + 프리팹 내부 NetworkBehaviour의 끝점 RPC(SyncVar 대안 `[ObserversRpc(BufferLast)]`)로 공유. 2클라(에디터+데스크톱 exe)에서 **생성·제거 양방향 전파** 확인. D4의 "스폰+RPC (있음)"이 계약 배선까지 내려와 실체화됨. 절차: [build-desktop-client.md](build-desktop-client.md). **주의**: 이는 "확정값 공유"만 — 1단계(잡기 소유권)·2단계(예측)는 여전히 밖.
 
-- **1단계 (SYSTEMS 소폭 확장):** 잡기 기반 소유권 — "잡는 순간 잡은
+- **1단계 (~~SYSTEMS 소폭 확장~~):** 잡기 기반 소유권 — "잡는 순간 잡은
   사람이 주인, 놓으면 확정 위치 전파". 예측 없이 협업 룸의 물건
   옮기기/배치 대부분 커버.
+  > **정정(2026-07-16):** SYSTEMS 확장 **불필요** — SDK `XumView`(Takeover
+  > + ServerRpc `GiveOwnership`)가 기계를 이미 제공, client-auth `NetworkTransform`이
+  > 소유권 이전 시 authority 승계. 접점은 `RequestOwnership()` 한 줄이라 FEATURE
+  > 지역 감싸기로 충분(계약 승격은 두 번째 소비자 시점). 조사: [grab-ownership-survey.md](grab-ownership-survey.md).
 - **2단계 (대공사, 보류):** client-side prediction — 날아가는 공을 서로
   뺏는 연속 경합에만 필요. 얼려둔 SYSTEMS를 녹여 재검증해야 하는 공사.
   착수 전 확인 사항: FishNet의 prediction API가 XumNet 래퍼를 통과해
