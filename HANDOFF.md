@@ -139,6 +139,7 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 - **플러그인 설치:** `c:\J_0`를 **로컬 마켓플레이스**로 등록 후 `Install locally`로 `promptscene` 설치. **훅/스킬 변경은 재설치 + 세션 재시작해야 반영**된다(`/reload-plugins`만으로 훅이 안 잡힐 수 있음). 세션은 반드시 마켓플레이스 루트에서 시작(→ §7).
 - **플러그인 로드 방식:** local marketplace(`c:\J_0`) + `/plugin install promptscene@promptscene-harness`(Install locally). **훅 반영은 재설치 + 재시작 필요.**
 - **원격/private:** `oxr-sdk` 레포는 private — clone/fetch 시도 금지, 필요한 건 로컬 PackageCache에 있음.
+- **에이전트 레지스트리 함정:** 세션 도중 새로 만든 `.claude/agents/*.md`는 그 세션에서 `subagent_type`으로 **등록되지 않는다**(레지스트리는 세션 시작 시 로드). 새 서브에이전트를 쓰려면 **세션 재시작** 필요 — 훅/스킬 반영 규칙(재설치+재시작)과 동일. 임시 위임은 기존 등록 에이전트(`general-purpose` 등)에 규칙을 인라인해 처리. (2026-07-16 guard-probe 탐침에서 확인. 참고: PreToolUse 가드 훅은 서브에이전트 내부 도구 호출에도 fail-closed로 적용됨을 라이브 검증.)
 
 ---
 
