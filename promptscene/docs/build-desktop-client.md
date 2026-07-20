@@ -140,8 +140,9 @@ Client.exe -psAutoJoin true -mstRememberUser false -screen-width 1000 -screen-he
 | H | 빌더가 cfg에 **LAN IP 자동 기입** | localhost 테스트면 매 재빌드 후 cfg의 IP를 `127.0.0.1`로 교정 |
 | I | **클라 런타임 네트워크 스폰이 `IsClientStarted` 전에 드롭됨**(M2) | 스폰(`core.Net.Spawn`)은 `InstanceFinder.IsClientStarted` 게이트 뒤 + 프롭 등장까지 재시도. `ClientId` 유효만으론 부족 |
 | J | **2 데스크톱 게스트 동시 조인 flakiness**(M2: 2번째 sign-in/validation 미완 + 서버 2nd-connect NRE) | 조인 직렬화(A player 확정 후 B 기동)+재시도. 신뢰 토폴로지는 에디터+1데스크톱. 그랩 결함 아님 |
+| K | **콜드 스타트 클라의 방 조인이 액세스 토큰 만료로 실패**(M3): 방 액세스 토큰의 `AccessTimeoutPeriod`가 **10초**인데, exe **첫 실행**은 StartMatch→룸 씬 로드(셰이더 컴파일 등)가 10초를 넘겨 room.log `Failed to confirm the access` / 클라 `Room could not validate you`로 거부→Client.unity 재로드(하네스 2중 인스턴스, 로그 2줄씩) | **재시도가 정답**: 프로세스 재기동(웜 스타트는 씬 로드가 빨라 통과). 직렬화 조인(트랩 J)과 별개로, 같은 exe의 **워밍업 1회** 후 본 판정을 돌리는 게 안전. 하네스의 조인 실패 후 자동 재시도는 미구현(현재는 재기동) |
 
-> **정직 계약:** 이 절차의 증명 범위는 **2클라 상호 가시 + 측정 결과값(생성/제거) 전파 + 잡기 소유권 핸드오버**(D4-1, §10)까지. 채팅, 3인+, 실기기(Quest) 2클라, 예측(D4-2)은 밖.
+> **정직 계약:** 이 절차의 증명 범위는 **2클라 상호 가시 + 측정 결과값(생성/제거) 전파 + 잡기 소유권 핸드오버**(D4-1, §10) + **텍스트 채팅 양방향**(M3, §11)까지. 3인+, 실기기(Quest) 2클라, 예측(D4-2), 채팅 이력 백필은 밖.
 
 ---
 
@@ -165,3 +166,20 @@ Client.exe -psAutoJoin true -mstRememberUser false -screen-width 1000 -screen-he
 - **판정 신호(5)**: ①A잡기 Owner=A 양측 ②A이동·놓기 위치 전파+Owner 유지(비반납) ③B탈취 Owner=B(A도 확인) ④B이동·놓기 위치 전파 ⑤A재탈취 Owner=A. 공유 `objId` 양측 교차 일치. **검증됨(2026-07-16, 5신호 PASS).**
 - **구현·함정 SSOT**: [grab-ownership-survey.md](grab-ownership-survey.md) §실증 (FEATURE `GrabbableProps`, 프리팹 `GrabbableProp`, `GrabbableView`가 `XumView.RequestOwnership` 직접 사용 — SYSTEMS/계약 무수정).
 - ⚠️ 2 데스크톱 게스트 동시 조인은 MST flakiness(트랩 J)로 재현이 불안정 — 그랩 로직 결함 아님. 1클라 스모크(스폰→잡기→이동→놓기→정리)는 안정 재현.
+
+---
+
+## 11. 텍스트 채팅 양방향 (M3, 2026-07-20)
+
+`ChatContent` FEATURE(2클라 채팅)의 라이브 검증. 검증된 두 기계의 조합만 사용 — `[ServerRpc(RequireOwnership=false)]` 상행(M2의 `CmdTakeOwnership`과 동형) + `[ObserversRpc]` 하행(M1의 `BroadcastEndpoints`와 동형). 신규 플랫폼 API 없음.
+
+- **구현(런타임 `Assets/PromptScene/Content/Chat/`)**: `ChatContent.cs`(IToggleableContent, 기능 지역 IMGUI 패널 — 우상단, 메시지 목록+입력줄+전송+Enter, RulerHudUI 무확장) + `ChatChannel.prefab`(루트 NetworkObject + `ChatChannelView`, DefaultPrefabObjects 자동 등록 C1) + `ChatChannelView.cs`(`CmdSend(text, NetworkConnection sender = null)` — **발신자는 서버가 주입한 ClientId**(XumView.SpecificActorServerRPC와 동일 패턴, 위조 불가) → `RpcReceive(senderId, text)` 전원 방송, 수신은 static Log로 **전 채널 집계**).
+- **채널 스폰-또는-재사용**(이번 유일한 신규 설계 지점): `SetEnabled(true)` 시 씬에 `ChatChannelView`가 없으면 `core.Net.Spawn`으로 1개 스폰, 있으면 재사용. 재시도 루프(3s)가 트랩 I(active 전 스폰 드롭)를 흡수. 동시-인에이블 레이스로 2채널이 나도 무해(수신 집계+발신 단일 채널). **실측**: B의 ENABLE 시점(막 active, 채널 미복제)에 스폰 시도 1건이 나갔으나 서버 미도달(트랩 I 경로로 드롭)—채널은 양측 내내 1개(objId 38402 교차 일치).
+- **SetEnabled(false) = 패널 숨김만**: 채널은 다른 클라를 위해 존치(개인 나가기 ≠ 룸 철거). 재켜기 시 기존 채널+로그 재사용(H2에서 재토글 후 channels=1 확인).
+- **Core 메커니즘 일반화 1건(정직 기록)**: `SimpleClickProvider.SuppressWorldClick`을 단일 writable bool → **클레임 기반**(`SetWorldClickSuppressed(claimant,on)`, 클레임 1개라도 있으면 억제)으로 교체. 패널이 2개(RulerHUD+채팅)가 되는 순간 마지막-쓰기-승리로 한쪽 억제가 스크립트 실행 순서에 따라 조용히 깨지는 잠재 버그의 수정. 계약(Contracts.cs) 무수정.
+- **판정(4신호, 에폭 동기 로그 — M2 방식)**: 에디터 A(myId=0, MCP 구동) + 데스크톱 exe B(myId=2, `-psChatTest true -psChatRole B -psChatEpoch <unixMs>`, 반응형 안무). **전부 PASS(2026-07-20)**:
+  ① A 발신 5건 → B 수신(`RECV from=0`, 내용 일치) ② B 회신 2건 → A 수신(P2) ③ B TRANSCRIPT [0..4]=A-msg-1..5 **순서 보존** ④ 발신자 교차 일치(양측 모두 A건=P0, B건=P2). 스크린샷(양쪽 패널 같은 대화): [screenshots/m3-chat-two-clients.png](screenshots/m3-chat-two-clients.png).
+- **1인 스모크(H2, 반복 재현 가능)**: 스폰(1채널/live/owner=본인)→off·on 재토글 후에도 1채널→루프백(자기 발신이 ObserversRpc로 돌아와 P0 표기)→SetEnabled(false) 패널 숨김+억제 해제.
+- **하네스 args**: `-psAutoJoin true -psChatTest true -psChatRole A|B -psChatEpoch <unixMs>`. A역=T≥12부터 5건 순차 발신, B역=A 5건 수신 후 2건 회신(반응형 — 느린 수동 구동에도 강건), 양측 TRANSCRIPT 덤프.
+- **정직 범위**: 텍스트 채팅 양방향, 2인, 데스크톱, **백필 없음**(늦게 조인한 클라는 과거 메시지 못 봄 — `ObserversRpc BufferLast`는 마지막 1건만 버퍼라 이력에 부적합; 이력 동기화는 수요 생기면). 3인+, VR 입력(가상 키보드), 귓속말/채널 분리, 입력 중 WASD 이동 억제는 밖.
+- **승격 검토**: FEATURE 내부 네트워크 사용이 3건이 된 시점의 `INetMessaging` 계약 승격 판정(보류 권고)은 [net-messaging-promotion-review.md](net-messaging-promotion-review.md).
