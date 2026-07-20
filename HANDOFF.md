@@ -47,9 +47,9 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 | 1 | 계약 규격 | ✅ |
 | 2 | Ruler를 계약 위에 클린 재구현(파일럿) | ✅ |
 | 2.5 | 씬 계층 표준화 | ✅ |
-| 3 | 런치패드 UI(registry→아이콘 그리드→SetEnabled) | ⬜ **보류/롤백** — 회고 [promptscene/docs/promptscene-launchpad-attempt.md](promptscene/docs/promptscene-launchpad-attempt.md). 단, 최소 플레이 HUD(`RulerHudUI`, registry→토글+클리어, IMGUI)는 2026-07-15 추가·검증(아이콘 그리드 런치패드는 아님) — §5b·build-desktop-client §9 |
+| 3 | 런치패드 UI(registry→아이콘 그리드→SetEnabled) | ⬜ **보류/롤백** — 회고 [promptscene/docs/promptscene-launchpad-attempt.md](promptscene/docs/promptscene-launchpad-attempt.md). 단, 최소 플레이 HUD(`RulerHudUI`, registry→토글+클리어, IMGUI)는 2026-07-15 추가·검증(아이콘 그리드 런치패드는 아님) — §5c·build-desktop-client §9 |
 | 4 | `/scaffold-content` 스킬화 + LLM 신규 기능 생성 템플릿 | ✅ **라이브 검증(2026-07-09)**, 샘플 `ClickSpawnerContent`로 §5+§6.5 PASS |
-| 5 | `/compose-room` 합성 스킬 + 합성 하네스 | ✅ **라이브 검증(2026-07-13)**, `ComposedRoom_1`(Ruler)로 §5+§6.5 PASS |
+| 5 | `/compose-room` 합성 스킬 + 합성 하네스 | ✅ **라이브 검증(2026-07-13)**, `ComposedRoom_1`(Ruler)로 §5+§6.5 PASS. **N=3 실증(2026-07-20 M4)**: `ComposedRoom_2`(Chat+Ruler+Grabbable, 슬래시 발동) §5×3+§6.5 PASS |
 
 **스킬 4종(현재 동작):**
 - `/promptscene:assemble-room <RoomName>` — ROOM 조립 + C1~C4 + 서버 재빌드/조인 + §6.5 런타임 신호 라이브 증명.
@@ -59,7 +59,15 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 
 **정직 계약:** 하네스는 **§5 구조/계약 적합성만** 증명한다. 기능의 실제 동작·미감은 **비검증**(사람/비전 루프 필요).
 
-## 5. 직전 세션(2026-07-20 — M3 채팅 닫힘, 원래 요청 3종 완주)
+## 5. 직전 세션(2026-07-20 — M4 다기능 합성 피날레, 한 줄 → 3기능 룸)
+
+- **M4 관통 (§8-3 "다기능 합성 실증" + "슬래시 표면 발동" 닫힘):** `/promptscene:compose-room 채팅으로 다른 참가자와 소통하고, 측정한 내용을 서로 볼 수 있고, 물건을 잡아서 옮길 수 있는 룸 만들어줘` — **슬래시 표면으로 발동**(절차 직접 수행 아님). RESOLVE가 소스 카탈로그 4종에서 **Chat(소통)+Ruler(측정)+GrabbableProps(물체) 3종 선택, ClickSpawner 비선택**(요청에 대응 능력 없음 — 카탈로그 매칭이 실제로 변별한다는 음성 증거, plan의 `notSelected`에 박제) → `ComposedRoom_2` 조립(`C1/C3/RoomCore/기능3종=True, sceneIdsGenerated=1`) → Room.exe 재빌드 → **§6.5 SYSTEMS 4신호 + §5 FEATURES 3종 전부 PASS**(`=== §5 COMPOSITION VERDICT: PASS (3 features) ===`, room.log `Client 0 has become a player`). plan: [composition-plan.json](promptscene/skills/compose-room/composition-plan.json).
+- **빌더 갭 1건 발견·오케스트레이션으로 해소(역기입):** `build_composed_room.cs`는 기능 컴포넌트를 AddComponent까지만 하고 **직렬화 프리팹 필드는 배선하지 않는다**(ComposedRoom_1의 룰러도 M1 때 수동 배선했던 것). §5는 프리팹 없이도 통과하지만(우아한 경고) 실동작엔 필요 → EXECUTE에 후처리(채팅 채널/측정/잡기 프리팹 3종 배선+씬 재저장)를 넣고 compose-room SKILL.md Stage 4에 절차로 기입.
+- **2클라 데모(증명 아님 — 시연):** 신뢰 토폴로지(에디터 A=clientId 1 + 데스크톱 exe B=clientId 2, Client.exe를 ComposedRoom_2 번들로 재빌드, cfg localhost). 한 세션에서 ①채팅 한 마디(B `RECV from=1`) ②측정 공유(3.28 m 선) ③프롭 핸드오버 왕복(B 로그 ownerId 1→2→1, 위치 전파 동반) 전부 관측. **피날레 스크린샷**(한 화면에 두 아바타+채팅 패널+측정선+프롭): [m4-composed-room-finale.png](promptscene/docs/screenshots/m4-composed-room-finale.png).
+- **F0 회귀:** SuppressWorldClick 클레임화 — 기계 확인(OR-의미론 5케이스) + 라이브 확인(제3 claimant가 RulerHUD·채팅 패널의 매 프레임 쓰기에도 생존, 해제 후 잔류 0 — 구 bool이면 소멸했을 시나리오) 모두 PASS.
+- **정직 계약:** 하네스 증명 범위는 **구조/계약 적합성**(§6.5+§5×3)까지. 데모의 기능 동작(채팅/측정/핸드오버)은 **시연이지 하네스 증명 아님**. `params` 실전달, `mode:"extend"`, MutuallyExclusive 충돌 케이스는 **여전히 미실증**(§8-3 잔존).
+
+## 5a. 그 직전 세션(2026-07-20 — M3 채팅 닫힘, 원래 요청 3종 완주)
 
 - **M3 실증 (룰러 공유·그랩·채팅 시리즈의 마지막 조각):** 새 FEATURE `ChatContent`(런타임 `Assets/PromptScene/Content/Chat/`)로 2클라 텍스트 채팅 양방향을 라이브 판정. **4신호 전부 PASS**(①A 발신 5건→B 수신, 내용+발신자 일치 ②B 회신 2건→A 수신 ③연속 5건 순서 보존 ④발신자 표시 양측 교차 일치 — 양측 모두 A건=P0/B건=P2). 검증된 두 기계의 조합만 사용(`ServerRpc(RequireOwnership=false)` 상행=M2 동형 + `ObserversRpc` 하행=M1 동형) — 신규 플랫폼 API 0. **계약(Contracts.cs) 무수정**, 프리팹 `ChatChannel`(NetworkObject+`ChatChannelView`) C1 자동 등록 + Room.exe/Client.exe 재빌드. 발신자는 **서버가 주입한 ClientId**(`NetworkConnection sender = null` 패턴, 위조 불가) — 닉네임 시스템 발명 안 함. 절차·판정 SSOT: [build-desktop-client.md](promptscene/docs/build-desktop-client.md) §11, 스크린샷 [m3-chat-two-clients.png](promptscene/docs/screenshots/m3-chat-two-clients.png).
 - **신규 설계 지점 1개 — 채널 스폰-또는-재사용:** SetEnabled 시 씬에 채널이 없으면 `core.Net.Spawn`, 있으면 재사용(2클라가 각자 스폰해 2채널 되는 것 방지). 재시도 루프가 트랩 I를 흡수, 동시-인에이블 레이스는 수신 전-채널 집계(static Log)로 무해화. 실측: B(objId 38402 재사용, 양측 내내 1채널). SetEnabled(false)=패널 숨김만(채널은 타 클라용 존치).
@@ -68,14 +76,14 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 - **함정(신규, 트랩 K):** 콜드 스타트 exe의 방 조인이 액세스 토큰 만료(AccessTimeoutPeriod 10s < 첫 실행 씬 로드)로 실패(`Room could not validate you`) → 재기동(웜 스타트)으로 통과. build-desktop-client §8 표 K.
 - **정직 범위:** 텍스트 채팅 양방향, 2인, 데스크톱, 백필 없음(늦게 조인하면 과거 메시지 안 보임 — 패널에 명시)까지 증명. **밖:** 이력 동기화, 3인+, VR 입력(가상 키보드), 귓속말/채널 분리, 입력 중 WASD 억제.
 
-## 5a. 그 직전 세션(2026-07-16 — M2 잡기 기반 소유권, D4-1 닫힘)
+## 5b. 그 이전 세션(2026-07-16 — M2 잡기 기반 소유권, D4-1 닫힘)
 
 - **M2 실증 (D4 1단계 "잡기 기반 소유권" 닫힘):** 새 FEATURE `GrabbableProps`(런타임 `Assets/PromptScene/Content/GrabbableProps/`)로 2클라 잡기→이동→놓기→**핸드오버(Owner A→B→A)**를 라이브 판정. **5신호 전부 PASS**(①A잡기 Owner=A 양측 ②A놓기 위치 전파+Owner 유지=비반납 ③B탈취 Owner=B ④B놓기 위치 전파 ⑤A재탈취 Owner=A, 공유 objId 양측 교차 일치). **SYSTEMS·계약 무수정** — 프리팹 `GrabbableProp`(NetworkObject+`XumView` Takeover+client-auth `NetworkTransform`+`GrabbableView`)의 뷰가 SDK `XumView.RequestOwnership`를 직접 사용(M1 `RulerMeasurementView`와 동형). C1: `DefaultPrefabObjects` 자동 등록 + Room.exe 재빌드. 검증 SSOT: [grab-ownership-survey.md](promptscene/docs/grab-ownership-survey.md) §실증.
 - **하네스 확장:** `AutoJoinClient`에 그랩 안무 추가(`-psGrabTest`/`-psGrabRole A|B`/`-psGrabEpoch` — 공유 에폭 타임라인). 런처 `Builds/App/play-grabtest.ps1`(서버+2클라, 직렬화 조인).
 - **핵심 함정(신규, 아래 §7):** ①클라 런타임 스폰은 `IsClientStarted` 뒤에(ClientId 유효만으로 부족 → 스폰 RPC 드롭) ②2 데스크톱 게스트 동시 조인 MST flakiness(2번째 게스트 sign-in/validation 미완 + 서버 2nd-connect NRE) — 그랩 결함 아님, 인프라. 신뢰 토폴로지는 에디터+1데스크톱.
 - **정직 범위:** 클릭 잡기·놓기·Takeover 핸드오버, 2인, 데스크톱, 비반납 모델까지 증명. **밖(알려진 한계):** VR 컨트롤러 그랩, 오너 이탈 중 잡힘 상태(NT 송신자 공백), 3인 동시 경합, 잡는 동안 원격 보간 품질, 예측(D4-2). 2클라 핸드오버는 **1회 클린 통과로 5신호 증명**했고 재현은 MST 게스트 flakiness로 불안정(1클라 스모크는 안정 재현).
 
-## 5b. 그 이전 세션(2026-07-14~15, 멀티플레이 실증 + Ruler 결과값 공유)
+## 5c. 그 이전 세션(2026-07-14~15, 멀티플레이 실증 + Ruler 결과값 공유)
 
 - **M0 멀티플레이 실증 (프론티어 "멀티플레이 실증" 닫힘):** 에디터 클라 + **빌드된 Windows 데스크톱 클라**(2번째 클라, ParrelSync 없이) 2인을 localhost로 붙여 §6.5 확장 신호(①자기 IsOwner=True ②원격 Clone IsOwner=False ③위치 전파)를 **양측 시점**(에디터=리플렉션, exe=`-logFile`)에서 라이브 판정. 두 아바타 ObjId 교차 일치. 실체: arg 게이트 자동조인 하네스 `Assets/PromptScene/Harness/AutoJoinClient.cs`. 절차·함정 신규 문서 [build-desktop-client.md](promptscene/docs/build-desktop-client.md).
 - **M1 Ruler 결과값 공유 (D4 왼쪽 열 실증):** RoomCore의 `INetSpawn`을 **FishNet 백엔드 `FishNetSpawn`**으로 실체화(계약 §4.5 메커니즘 승격 — SYSTEMS 해동 아님) + Ruler 측정을 `RulerMeasurement` 프리팹(NetworkObject + FEATURE-내부 `RulerMeasurementView`)으로 네트워크 스폰. 끝점은 `[ObserversRpc(BufferLast)]`로 전파(INetSpawn.Spawn이 못 나르는 per-object 데이터). **생성·제거 양방향 전파** 확인. RulerContent는 여전히 Core만 참조.
@@ -83,7 +91,7 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 - (설계 결정: M1은 사용자 선택으로 **RoomCore INetSpawn 실체화** 경로. 계약 주석의 "Despawn 매핑은 RoomCore 구현 참조"와 부합.)
 - **수동 플레이 HUD(사람이 직접 몰기용):** 인게임 IMGUI 패널 `RulerHudUI`(룸 UI에 심음) — 레지스트리 순회로 콘텐츠별 ON/OFF 토글 + 측정 지우기 + 공유 카운트. `SimpleClickProvider`에 `SuppressWorldClick` 훅(HUD 클릭이 바닥 측정으로 새는 것 방지). `activeInputHandler=2(Both)`라 레거시 Input 클릭 동작. **클릭→네트워크 측정 스폰→공유** 라이브 검증. 런처 `Builds/App/play-2clients.ps1`. ⚠️ 이건 **Phase 3 런치패드(아이콘 그리드)가 아니라** "플레이 가능하게 하는 최소 UI" — 런치패드는 여전히 보류(§4). 절차·검증: build-desktop-client §9.
 
-## 5c. 그 이전 세션(2026-07-13, Phase 5 관통)
+## 5d. 그 이전 세션(2026-07-13, Phase 5 관통)
 
 - **`/compose-room` 스킬 신설**(`promptscene/skills/compose-room/`): SKILL.md(PARSE→RESOLVE→PLAN→EXECUTE→VERIFY) + 자산 2종(`build_composed_room.cs` N기능 조립, `verify_composition.cs` N기능 §5 판정). 설계 확정: compose-room은 **오케스트레이터** — 신규 담당은 ①자연어→기능 선택 ②부품 조율+최종 판정뿐, 조립은 assemble-room·scaffold-content **참조 호출**(절차 복제 금지, SSOT). PLAN은 `composition-plan.json`으로 박제(계획 vs 실행 문제 분리), unresolved/conflict 시 정지·질문.
 - **관통 검증 PASS**: "측정 도구 있는 룸 만들어줘" → Ruler(Category 측정) 선택 → `ComposedRoom_1` 조립 → Room.exe 재빌드 → 서버+에디터 클라 조인 → **§6.5 4신호 전부**(become-a-player / 로비 소멸+MovedObjectsHolder / Desktop(Clone) IsOwner=True / DummyController+헤드팔로워+NetworkTransform) + **§5 COMPOSITION PASS**(ruler 자기등록·SetEnabled 무예외·Meta 룰러/측정).
@@ -139,12 +147,13 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 > **설계 방향 기록:** 2026-07 아키텍처 토론의 결정 사항(사거리 재정의, COMPOSITIONS 층, 에셋 전략 등)은 [design-directions-2026-07.md](promptscene/docs/design-directions-2026-07.md)에 정리됨.
 
 **바로 이어서:**
-1. ✅ **완료** — Phase 5 `/compose-room` 관통(§5c). 스킬 신설 커밋과 검증·문서 갱신 커밋을 분리해 기록.
-2. ✅ **완료** — **D4-1 잡기 기반 소유권(§5a, 2026-07-16 M2).** `GrabbableProps` FEATURE로 2클라 핸드오버 5신호 PASS, SYSTEMS/계약 무수정.
-2b. ✅ **완료** — **M3 채팅(§5, 2026-07-20).** `ChatContent` FEATURE로 2클라 채팅 양방향 4신호 PASS — **원래 요청 3종(룰러 공유 M1 / 그랩 M2 / 채팅 M3) 완주.** 메시징 계약 승격은 검토서로 **보류** 판정([net-messaging-promotion-review.md](promptscene/docs/net-messaging-promotion-review.md)) — 두 번째 순수 버스 소비자가 생기면 재개.
+1. ✅ **완료** — Phase 5 `/compose-room` 관통(§5d). 스킬 신설 커밋과 검증·문서 갱신 커밋을 분리해 기록.
+2. ✅ **완료** — **D4-1 잡기 기반 소유권(§5b, 2026-07-16 M2).** `GrabbableProps` FEATURE로 2클라 핸드오버 5신호 PASS, SYSTEMS/계약 무수정.
+2b. ✅ **완료** — **M3 채팅(§5a, 2026-07-20).** `ChatContent` FEATURE로 2클라 채팅 양방향 4신호 PASS — **원래 요청 3종(룰러 공유 M1 / 그랩 M2 / 채팅 M3) 완주.** 메시징 계약 승격은 검토서로 **보류** 판정([net-messaging-promotion-review.md](promptscene/docs/net-messaging-promotion-review.md)) — 두 번째 순수 버스 소비자가 생기면 재개.
+2c. ✅ **완료** — **M4 다기능 합성 피날레(§5, 2026-07-20).** 자연어 한 줄 → `/compose-room` **슬래시 표면 발동** → 3기능(Chat+Ruler+Grabbable) 선택·ClickSpawner 비선택(음성 증거) → `ComposedRoom_2` §6.5+§5×3 PASS + 2클라 데모(시연). **§8-3의 "다기능 합성(2개+) 실증"과 "슬래시 표면 발동 검증"은 이것으로 닫힘.**
 3. **로드맵 다음 순서(design-directions D5):** D4-1 완료 → **아픈 순서대로 D3(생성 에셋 파이프라인) 또는 D2(COMPOSITIONS 층)** → D4-2(예측). D2 착수 시점은 "서로 통신해야 하는 기능 2개"가 실제로 생길 때(지금 Ruler/ClickSpawner/GrabbableProps는 직교 → 수요 없음). ⚠️ 소유권 계약 승격(IRoomCore 헬퍼)은 **두 번째 잡기-소유권 소비자**가 실제로 생길 때 재검토(grab-ownership-survey 판정).
 4. **잡기 소유권 확장 여지(M2는 최소 관통):** VR 컨트롤러 그랩, 오너 이탈 중 잡힘 상태(NT 송신자 공백) 처리, 반납형 정책, 다중 소품, 3인 경합.
-3. **compose-room 확장 여지(v1은 최소 관통):** `mode:"extend"`(기존 룸에 기능 추가), 다기능 합성(2개+) 실증, 파라미터(`params`) 실제 전달, MutuallyExclusive 충돌 케이스 실증.
+3. **compose-room 확장 여지:** ~~다기능 합성(2개+) 실증~~ ✅ **닫힘(M4, §5 — N=3, 슬래시 표면 발동 포함)**. 잔존: `mode:"extend"`(기존 룸에 기능 추가), 파라미터(`params`) 실제 전달, MutuallyExclusive 충돌 케이스 실증.
 
 **Phase 5 이후에도 남은 프론티어(launchpad 회고에서 이월):**
 - ✅ **멀티플레이 실증 — 닫힘(2026-07-14~15).** 에디터 클라 + 빌드된 데스크톱 클라 2인이 서로의 아바타를 보고, Ruler 결과값(측정)이 양방향 전파됨을 라이브 증명. 실체: `AutoJoinClient.cs` 하네스 + [build-desktop-client.md](promptscene/docs/build-desktop-client.md).
