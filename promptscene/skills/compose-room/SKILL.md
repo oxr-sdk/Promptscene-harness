@@ -105,6 +105,12 @@ Write `composition-plan.json` (schema in contract) **before** executing:
    the catalog) and stop. If `sceneIdsGenerated=0/-1`, FishNet SceneId assignment failed → the avatar will silently
    not spawn in VERIFY (contract §1); do not proceed until it reports ≥1.
    - ⚠️ Never `EditorOnly`-tag a folder header that holds children (contract §1) — the asset leaves them untagged.
+   - **Wire feature prefab fields (orchestration post-step, M4 backfeed):** the generic builder only AddComponents —
+     it cannot know per-feature serialized prefab fields. After assembly, for each planned feature assign its
+     prefab reference via `SerializedObject` and re-save the scene BEFORE the Room.exe rebuild (current catalog:
+     `ChatContent.channelPrefab`←`Content/Chat/ChatChannel.prefab`, `RulerContent.measurementPrefab`←
+     `Content/Ruler/RulerMeasurement.prefab`, `GrabbableProps.grabbablePrefab`←`Content/GrabbableProps/GrabbableProp.prefab`).
+     §5 passes even unwired (graceful warning), so a missed wire shows up only when the feature actually runs.
 2. **Rebuild Room.exe** hosting the room — reuse **assemble-room** `assets/build_room.cs` (`BR_BuildRoom.Run`,
    set `ROOM`). FishNet scene network objects were just placed → the rebuild is mandatory (contract §1 warning).
    - ⚠️ Wait for the editor to be idle (`EditorApplication.isCompiling==false`) before building — a fresh `.cs`

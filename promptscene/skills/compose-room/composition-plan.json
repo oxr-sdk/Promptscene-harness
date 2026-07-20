@@ -1,9 +1,14 @@
 {
-  "roomName": "ComposedRoom_1",
+  "roomName": "ComposedRoom_2",
   "mode": "create",
-  "request": "측정 도구 있는 룸 만들어줘",
+  "request": "채팅으로 다른 참가자와 소통하고, 측정한 내용을 서로 볼 수 있고, 물건을 잡아서 옮길 수 있는 룸 만들어줘",
   "features": [
-    { "id": "ruler", "class": "RulerContent", "params": {} }
+    { "id": "chat",            "class": "ChatContent",    "params": {}, "matchedBy": "capability '채팅으로 다른 참가자와 소통' → DisplayName '채팅' / Category '소통'" },
+    { "id": "ruler",           "class": "RulerContent",   "params": {}, "matchedBy": "capability '측정한 내용을 서로 볼 수 있고' → Category '측정'" },
+    { "id": "grabbable-props", "class": "GrabbableProps", "params": {}, "matchedBy": "capability '물건을 잡아서 옮길 수 있는' → DisplayName '잡기 소품' / Category '물체'" }
+  ],
+  "notSelected": [
+    { "id": "click-spawner", "class": "ClickSpawnerContent", "reason": "요청의 어느 능력에도 대응 없음 (클릭 스폰/도구) — 카탈로그 매칭의 음성 증거" }
   ],
   "unresolved": [],
   "conflicts": []
