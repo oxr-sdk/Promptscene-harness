@@ -46,6 +46,26 @@ COMPOSITION만 안다. (UE5 GameMode / 미디에이터 패턴과 동일.)
 (launchpad 1차 시도의 교훈과 동형). **"서로 통신해야 하는 기능 2개"가
 실제로 생기는 순간**이 착수 시점.
 
+> **착수 (2026-07-21):** 게임 루프 요청(과녁 맞추기 점수전)으로 "서로 통신하는
+> 기능 2개" 수요가 발생 → 착수 조건 충족. 원안 그대로 구현:
+> - 계약 추가 **딱 하나** — 인프로세스 `IEventBus`(Publish/Subscribe/Unsubscribe).
+>   내장 서비스로 등록·`TryGet<IEventBus>` 조회라 `IRoomCore`는 무변경(v0.2 원칙).
+>   네트워크 전송은 버스 책임 아님(메커니즘-비정책 §4.5) — 복제는 프리팹 RPC로.
+> - 파일럿 FEATURE 2종(**서로 모름이 핵심**): `TargetProps`(과녁 스폰→`TargetHitEvent`
+>   발행까지만, 점수 모름) / `ScoreHud`(`ScoreChangedEvent` 구독·표시만, 과녁 모름).
+>   두 소스 상호 타입 참조 **0**(grep 검증) — 이 층의 §5급 신규 검증 신호.
+> - 첫 COMPOSITION `TargetShootoutMatch`(+ 네트워크 권위 프리팹 `MatchView`,
+>   ChatChannelView 동형): TargetHit 구독 → **서버 권위** 집계 → ScoreChanged 발행
+>   → 선취 N점 승자 공지(자체 표시; Chat 부재 시에도 무해 — 레지스트리 런타임 조회)
+>   → 리셋. 신규 플랫폼 API 0(M1/M3 검증 기계 재사용).
+>
+> **실증 상태:** **코드 작성 + 구조 불변식(참조 0·Core-only) grep 검증 완료.**
+> **라이브 게임 루프(2클라 점수전) 실증은 대기** — 해당 세션에 Unity
+> `ai-game-developer` MCP가 미연결이라 프리팹 C1 등록·`===== COMPOSITIONS =====`
+> 씬 배치·Room.exe 재빌드·2클라 판정을 수행하지 못함. 실증 절차: HANDOFF §8.
+> **정직 계약:** compose-room은 아직 COMPOSITION을 모름(합성 대상은 여전히 FEATURES만);
+> 게임 루프의 "재미"는 비검증; 예측은 견적만([prediction-survey.md](prediction-survey.md)).
+
 ## D3. 생성 에셋 파이프라인 — "라이브러리 공장" 모델
 
 **결정:** Qwen text2img → img23D 파이프라인은 런타임 즉석 생성이 아니라
@@ -93,6 +113,12 @@ COMPOSITION만 안다. (UE5 GameMode / 미디에이터 패턴과 동일.)
   뺏는 연속 경합에만 필요. 얼려둔 SYSTEMS를 녹여 재검증해야 하는 공사.
   착수 전 확인 사항: FishNet의 prediction API가 XumNet 래퍼를 통과해
   사용 가능한지 PackageCache 소스로 확인 (oxr-docs-routing 사거리).
+  > **정찰 완료(2026-07-21, P-G0):** [prediction-survey.md](prediction-survey.md).
+  > 판정 — 예측은 **XumNet 통과해 직접 도달 가능**(감쌀 것도 막을 것도 없음, FishNet
+  > 4.6.12). 단 **NetworkManager에 PredictionManager + 프리팹별 `_enablePrediction`**을
+  > 요구해 M1/M2/M3의 "SYSTEMS 무수정"을 깬다 → "보류"의 이유가 *불가능*이 아니라
+  > *SYSTEMS 해동 + 검증 인프라 비용*임이 확증됨. 지연/손실 시뮬은 FishNet 내장
+  > `LatencySimulator` 존재(검증 인프라 낭보). 비용 등급: 도달성 낮음/구조 공사 높음.
 
 ## D5. 로드맵 순서
 

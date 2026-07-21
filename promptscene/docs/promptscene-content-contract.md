@@ -14,11 +14,18 @@
 | 분류 | 의미 | 업계 용어 | 예 |
 |---|---|---|---|
 | **SYSTEMS** | 게임의 규칙·뼈대. 없으면 룸 자체가 안 돈다. | Core / Systems | 네트워크, 세션, 플레이어 스폰, 코어 레지스트리 |
-| **FEATURES** | 선택 기능 모듈. 원하는 것만. 코어가 그 존재를 모름. | Content / Features / **Game Features(UE5)** / Modules / Plugins | Ruler, Memo, Laser … |
+| **FEATURES** | 선택 기능 모듈. 원하는 것만. 코어가 그 존재를 모름. **서로도 모름.** | Content / Features / **Game Features(UE5)** / Modules / Plugins | Ruler, Chat, GrabbableProps, TargetProps, ScoreHud … |
+| **COMPOSITIONS** | 게임모드/시나리오. **기능들을 "아는" 유일한 층** — 직교하는 FEATURE 여럿을 하나의 루프로 조율. | **GameMode(UE5)** / Scenario / Mediator | TargetShootoutMatch(과녁 점수전) |
 
-**판별 테스트:** *"이 모듈을 빼도 프로젝트가 안 깨지나?"* → 깨지면 **SYSTEMS**, 안 깨지면 **FEATURE**.
+**판별 테스트:** *"이 모듈을 빼도 프로젝트가 안 깨지나?"* → 깨지면 **SYSTEMS**, 안 깨지면 **FEATURE**. *"이 모듈이 서로 다른 FEATURE 여럿을 조율하나?"* → 그렇다면 **COMPOSITION**.
 
-**핵심 원칙 (UE5 "Modular Game Features"와 동일):** 의존성은 **FEATURE → SYSTEMS 한 방향**. 절대 SYSTEMS가 특정 FEATURE를 컴파일타임에 참조하지 않는다(= 코어는 기능의 존재를 모른다). 그래서 기능은 런타임 on/off + 프로젝트 간 이식이 가능하다.
+**핵심 원칙 (UE5 "Modular Game Features / GameMode"와 동일):** 의존성은 **COMPOSITIONS → FEATURES → SYSTEMS 한 방향(비순환)**.
+- SYSTEMS는 특정 FEATURE를 컴파일타임에 참조하지 않는다(코어는 기능의 존재를 모른다).
+- **FEATURE는 다른 FEATURE를 참조하지 않는다**(서로 모른다) — 상호작용이 필요하면 그 조율은 위층(COMPOSITION)이 맡고, FEATURE끼리는 **인프로세스 이벤트 버스**(§2 `IEventBus`)로만 느슨히 만난다.
+- COMPOSITION은 자기가 조율하는 FEATURE의 **이벤트 타입**을 알 수 있으나(허용된 방향), 어떤 FEATURE가 실제 룸에 있는지는 **런타임 레지스트리 조회**로만 확인해 부재 시에도 안 깨진다.
+그래서 기능은 런타임 on/off + 프로젝트 간 이식이 가능하고, 게임 루프는 전제(직교성)를 깨지 않고 층으로만 얹힌다. — 설계 결정: [design-directions-2026-07.md](design-directions-2026-07.md) D2.
+
+> **COMPOSITIONS 층 상태(2026-07-21):** 계약(이벤트 버스)·파일럿 FEATURE 2종(TargetProps/ScoreHud)·첫 COMPOSITION(TargetShootoutMatch)·MatchView **코드 작성 완료 + 구조 불변식 grep 검증**(FEATURE↔FEATURE 참조 0). **라이브 게임 루프(2클라 점수전) 실증은 대기** — 당시 세션에 Unity `ai-game-developer` MCP가 미연결이라 프리팹 배선·Room.exe 재빌드·2클라 판정을 수행하지 못함. 실증 절차: 프리팹 2종(Target, MatchView)을 DefaultPrefabObjects에 C1 등록 + 씬 계층에 `===== COMPOSITIONS =====` 배치 → Room.exe 재빌드 → 2클라 조인 → 점수 동기·승자 공지·리셋 판정([build-desktop-client.md](build-desktop-client.md) 에폭-로그 골격 재사용). 상세: [HANDOFF.md](../../HANDOFF.md) §8.
 
 **경계 문장:** 계약은 **모듈 경계**(등록·조회·토글·통지)에만 적용되며, 모듈 내부 구조는 규율하지 않는다. FEATURE 내부는 빠른 반복을 위해 자유롭게 작성해도 된다 — 격리가 보장되므로.
 
@@ -36,14 +43,20 @@
 │   └── RoomCore               RoomCore (IRoomCore 구현 + RoomContentRegistry) — 특정 기능을 모름
 ├── ===== ENVIRONMENT =====    Floor, Walls, Lighting, Main Camera
 ├── ===== UI =====             R-MasterCanvas (룸 HUD), Launchpad
-├── ===== FEATURES =====       ← Content. 선택. 각 모듈이 스스로 레지스트리에 등록.
-│   └── Ruler                  RulerContent (IToggleableContent)
-└── ===== _DYNAMIC =====       런타임 생성물 (아바타 Clone, RulerMeasurement, 메모 등)
+├── ===== FEATURES =====       ← Content. 선택. 각 모듈이 스스로 레지스트리에 등록. 서로 참조 0.
+│   ├── Ruler                  RulerContent (IToggleableContent)
+│   ├── TargetProps            TargetProps (IToggleableContent) — 클릭 과녁, TargetHitEvent 발행
+│   └── ScoreHud               ScoreHud (IToggleableContent) — ScoreChangedEvent 구독·표시
+├── ===== COMPOSITIONS =====   ← Game modes. 선택. FEATURE들을 아는 유일한 층 (있을 때만 존재).
+│   └── TargetShootoutMatch    TargetShootoutMatch (MonoBehaviour) — 과녁→점수→승자→리셋 조율
+└── ===== _DYNAMIC =====       런타임 생성물 (아바타 Clone, RulerMeasurement, MatchView, Target 등)
 ```
 
 규칙
 - **SYSTEMS는 특정 FEATURE를 컴파일타임에 참조하지 않는다.** (구 RoomManager의 `public RulerManager …` 하드필드 = 안티패턴, 금지)
-- FEATURE 모듈은 `===== FEATURES =====` 아래에 통째로 들어오며, 빠지면 SYSTEMS에 참조가 0개 → 빌드/런타임 안 깨짐.
+- **FEATURE는 다른 FEATURE를 참조하지 않는다.** 상호작용이 필요하면 `IEventBus`(§2)로 이벤트를 주고받고, 그 조율은 `===== COMPOSITIONS =====`의 게임모드가 맡는다. 신규 검증 신호: 파일럿 두 FEATURE 소스에 **상대 타입 참조 0**(grep). — COMPOSITIONS 층 도입: [design-directions-2026-07.md](design-directions-2026-07.md) D2.
+- **COMPOSITION은 조율 대상 FEATURE의 이벤트 타입은 알아도(허용 방향), 어떤 FEATURE가 룸에 있는지는 런타임 레지스트리(`Contents.GetById`)로만 확인**해 부재 시에도 안 깨진다. COMPOSITION이 빠지면 각 FEATURE는 그대로 독립 동작(이벤트를 아무도 안 들을 뿐).
+- FEATURE 모듈은 `===== FEATURES =====` 아래에 통째로 들어오며, 빠지면 SYSTEMS에 참조가 0개 → 빌드/런타임 안 깨짐. COMPOSITION도 `===== COMPOSITIONS =====` 아래에 통째로 들어오고 빠질 수 있다.
 - 횡단 작업(스케일 변경 시 정리 등)은 SYSTEMS가 레지스트리를 순회해 처리. 기능 추가 시 SYSTEMS 코드 수정 0.
 - ⚠️ FishNet **씬 네트워크 오브젝트**(R-RoomServer, --PLAYER_SPAWNER)를 재배치하면 씬오브젝트 ID가 바뀐다 → 네트워크 빌드(Room.exe) 재빌드 필요.
 - ⚠️ **스크립트 단발 빌드는 FishNet SceneId를 자동 할당하지 못한다** (2026-07-13 발견). 한 번의 `script-execute` 안에서 `NewScene`→오브젝트 배치→`SaveScene`을 끝내면, FishNet의 자동 SceneId 생성 훅(`EditorSceneManager.sceneSaving`)이 **비결정적으로 건너뛰어져** 스포너 NetworkObject가 `SceneId=0 / IsSceneObject=false`로 저장될 수 있다. 증상이 **조용하다**: 룸 입장·로비 소멸(C3)·스포너 복제까지 정상인데 **아바타(Desktop(Clone))만 스폰되지 않는다**(전용 서버가 SceneId 없는 스포너로 플레이어를 못 띄움). "become a player" 로그는 MST 레벨이라 떠도 FishNet 스폰은 실패. **해법**: 저장 직전에 `Tools/Fish-Networking/Utility/Reserialize NetworkObjects`가 하는 일을 코드로 재현 — `NetworkObject.CreateSceneId(scene, force:true, out changed)` + 각 nob에 `ReserializeEditorSetValues(true,false)`(둘 다 `internal`→리플렉션) 후 `SaveScene`. 검증: 재오픈해서 스포너 `IsSceneObject==true`. compose-room의 `build_composed_room.cs`(`AssignFishNetSceneIds`)와 scaffold-content의 `build_feature_room.cs`에 반영됨. (assemble-room처럼 여러 `script-execute`에 걸쳐 씬을 열어두고 저장하는 흐름은 훅이 붙을 틈이 있어 우연히 통과하기도 했다 — 그래서 함정.)
@@ -63,6 +76,18 @@ namespace PromptScene.Core
     public interface IInteraction { void AddClick(Action<RaycastHit> onClick); void RemoveClick(Action<RaycastHit> onClick); }
     public interface INetSpawn { bool IsNetworked { get; } GameObject Spawn(GameObject prefab, Vector3 p, Quaternion r); void Despawn(GameObject instance); } // Despawn: Spawn으로 만든 인스턴스만. v0.2에서 FishNet 백엔드로 실체화(RoomCore.FishNetSpawn) — 아래 주석
     public interface INetDespawnRequest { void RequestServerDespawn(); } // 네트워크 스폰된 인스턴스가 구현: 비서버 클라가 서버에 디스폰 요청(ServerRpc). INetSpawn.Despawn을 제네릭하게 유지(SYSTEMS가 FEATURE를 모름). XumNet엔 Despawn 심볼 없음 → FishNet ServerManager.Despawn 경유.
+
+    // COMPOSITIONS 층 활성화용 유일한 계약 추가(2026-07-21, design-directions D2). 인프로세스 타입드 이벤트 버스.
+    // FEATURE는 타입으로 발행/구독만 하고 누가 듣는지 모름 → FEATURE 간 직접 참조 0을 유지한 채 COMPOSITION이 조율.
+    // 메커니즘-비정책(§4.5): 이 프로세스 안에서만 라우팅하며 네트워크로 나가지 않는다. 복제가 필요한 값(예: 서버 권위 점수)은
+    // 여전히 발행/구독자 프리팹 내부의 검증된 RPC(M1/M3 동형)로 나른다. 두 소비자(TargetProps 발행 / COMPOSITION 구독)로
+    // 도입 시점에 rule-of-two(§4.5) 충족. 내장 서비스로 등록되고 core.TryGet<IEventBus>()로 조회 → IRoomCore는 무변경(v0.2).
+    public interface IEventBus
+    {
+        void Publish<T>(T evt);                 // 구독자 전원에 동기 전달. 예외 던지는 핸들러는 로그+격리(전달·발행 중단 안 됨).
+        void Subscribe<T>(Action<T> handler);   // (T,handler)당 멱등 — 같은 델리게이트 재구독해도 중복 호출 안 됨.
+        void Unsubscribe<T>(Action<T> handler); // 구독 안 된 핸들러에도 안전.
+    }
 
     // v0.2: 서비스는 프로퍼티로 열거하지 않고 TryGet<T>로 조회한다. 서비스가 늘어도 IRoomCore는 안 바뀐다.
     public interface IRoomCore
@@ -89,7 +114,7 @@ namespace PromptScene.Core
 }
 ```
 
-구현 파일: `Core/Contracts.cs`, `Core/RoomContentRegistry.cs`, `Core/SimpleClickProvider.cs`(데스크톱 클릭→레이캐스트, IInteraction), `Core/RoomCore.cs`(MonoBehaviour, `RoomCore.Instance`). `RoomCore`는 `Awake`에서 내장 서비스 3종(`IInteraction`=SimpleClickProvider, `INetSpawn`=**`FishNetSpawn`**, `IRoomUserState`)을 `Type→object` 딕셔너리에 `RegisterService`로 담고, FEATURE는 `TryGet`으로 꺼낸다.
+구현 파일: `Core/Contracts.cs`, `Core/RoomContentRegistry.cs`, `Core/SimpleClickProvider.cs`(데스크톱 클릭→레이캐스트, IInteraction), `Core/RoomCore.cs`(MonoBehaviour, `RoomCore.Instance`). `RoomCore`는 `Awake`에서 내장 서비스 4종(`IInteraction`=SimpleClickProvider, `INetSpawn`=**`FishNetSpawn`**, `IRoomUserState`, **`IEventBus`=인프로세스 EventBus**)을 `Type→object` 딕셔너리에 `RegisterService`로 담고, FEATURE는 `TryGet`으로 꺼낸다. `IEventBus` 추가로 `IRoomCore` 인터페이스는 **무변경**(서비스로만 추가 — v0.2 원칙, 코어가 god 인터페이스로 자라지 않음).
 > **INetSpawn 실체화(2026-07-14, 계약 §4.5 메커니즘 승격 — SYSTEMS 해동 아님):** 파일럿의 `LocalNetSpawn`(IsNetworked=false)을 **`FishNetSpawn`**으로 교체. `Spawn`→`XumNetwork.Instantiate(nob,p,r,ownerConn)`(클라는 ServerRpc 왕복·**null 반환**), `Despawn`→서버면 `ServerManager.Despawn`·클라면 `INetDespawnRequest`. 네트워크 없으면 로컬 Instantiate 폴백. **주의(narrowness):** `Spawn(prefab,pos,rot)`은 **per-object 데이터를 못 나른다**(클라 null 반환이라 초기화 핸들도 없음). 그래서 결과값(예: 룰러 두 끝점)은 **FEATURE 프리팹의 내부 NetworkBehaviour**(SyncVar/RPC)가 나른다 — 계약 §1이 "모듈 내부는 자유"라 명시하므로 그 컴포넌트는 FishNet을 직접 써도 되고, 등록되는 `IToggleableContent`(RulerContent)는 여전히 `PromptScene.Core`만 참조한다. 실증: Ruler 결과값 공유(생성·제거 양방향 전파), [build-desktop-client.md](build-desktop-client.md) §6·§7.
 **우아한 실패(graceful failure)**: FEATURE는 `OnRegister`에서 필요한 서비스를 `TryGet`으로 확보하되, 실패 시 `Debug.LogWarning($"[{Id}] required service {nameof(IInteraction)} not available — feature stays disabled")`를 남기고 **비활성 상태를 유지**한다(예외·NullReference 금지). 이 패턴은 Phase 4 템플릿의 표준 동작이다.
 첫 FEATURE: `Content/Ruler/RulerContent.cs` (`IToggleableContent`).
