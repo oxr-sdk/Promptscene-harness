@@ -59,12 +59,14 @@ COMPOSITION만 안다. (UE5 GameMode / 미디에이터 패턴과 동일.)
 >   → 선취 N점 승자 공지(자체 표시; Chat 부재 시에도 무해 — 레지스트리 런타임 조회)
 >   → 리셋. 신규 플랫폼 API 0(M1/M3 검증 기계 재사용).
 >
-> **실증 상태:** **코드 작성 + 구조 불변식(참조 0·Core-only) grep 검증 완료.**
-> **라이브 게임 루프(2클라 점수전) 실증은 대기** — 해당 세션에 Unity
-> `ai-game-developer` MCP가 미연결이라 프리팹 C1 등록·`===== COMPOSITIONS =====`
-> 씬 배치·Room.exe 재빌드·2클라 판정을 수행하지 못함. 실증 절차: HANDOFF §8.
-> **정직 계약:** compose-room은 아직 COMPOSITION을 모름(합성 대상은 여전히 FEATURES만);
-> 게임 루프의 "재미"는 비검증; 예측은 견적만([prediction-survey.md](prediction-survey.md)).
+> **실증 (2026-07-21, ✅ 라이브 완료):** 코드 + 구조 불변식(참조 0·Core-only) grep 검증에
+> 더해 **라이브 게임 루프를 실제로 돌려 판정.** 프리팹 2종(Target/MatchView) C1 등록 →
+> `ShootoutRoom_1`(씬에 `===== COMPOSITIONS =====` 포함) → Room.exe 재빌드 → ①**단일 클라
+> 서버권위 루프**(명중→집계 1→2→3→선취 3점 승자→리셋→재판) ②**2클라 점수 동기 파리티**
+> (에디터 A 명중 → 별도 데스크톱 프로세스 B가 동일 서버권위 스코어보드 수신·승자 P1 일치)
+> ③**버스 런타임 스모크**(전달·멱등·예외격리) 전부 PASS. 절차·증거: [build-desktop-client.md](build-desktop-client.md) §12, HANDOFF §5.
+> **정직 계약:** compose-room은 아직 COMPOSITION을 모름(합성 대상은 여전히 FEATURES만 — 편입은 후속);
+> 게임 루프의 "재미"는 비검증(구조·서버권위·동기만 증명); 예측은 견적만([prediction-survey.md](prediction-survey.md)).
 
 ## D3. 생성 에셋 파이프라인 — "라이브러리 공장" 모델
 

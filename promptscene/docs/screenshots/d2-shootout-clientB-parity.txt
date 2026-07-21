@@ -1,0 +1,8 @@
+[Info | RoomClientManager] Start joining a room at 127.0.0.1:7777. Scene: ShootoutRoom_1
+[MatchView] scoreboard players=1 leader=P1 over=False winner=P-1 target=3
+[MatchView] scoreboard players=1 leader=P1 over=False winner=P-1 target=3
+[MatchView] scoreboard players=1 leader=P1 over=True winner=P1 target=3
+[shootout] WINNER P1 (first to 3). announce=self-display; chatPresent=False (chat routing deferred — needs a neutral announcement contract)
+[MatchView] scoreboard players=0 leader=P-1 over=False winner=P-1 target=3
+[MatchView] scoreboard players=1 leader=P1 over=False winner=P-1 target=3
+[MatchView] scoreboard players=1 leader=P1 over=False winner=P-1 target=3

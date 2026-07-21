@@ -1,0 +1,7 @@
+=== MatchView broadcast recorder armed ===
+#0 ids=[0] scores=[1] target=3 leader=P0 over=False winner=P-1
+#1 ids=[0] scores=[2] target=3 leader=P0 over=False winner=P-1
+#2 ids=[0] scores=[3] target=3 leader=P0 over=True winner=P0
+#3 ids=[] scores=[] target=3 leader=P-1 over=False winner=P-1
+#4 ids=[0] scores=[1] target=3 leader=P0 over=False winner=P-1
+#5 ids=[0] scores=[2] target=3 leader=P0 over=False winner=P-1

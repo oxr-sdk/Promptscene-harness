@@ -25,7 +25,7 @@
 - COMPOSITION은 자기가 조율하는 FEATURE의 **이벤트 타입**을 알 수 있으나(허용된 방향), 어떤 FEATURE가 실제 룸에 있는지는 **런타임 레지스트리 조회**로만 확인해 부재 시에도 안 깨진다.
 그래서 기능은 런타임 on/off + 프로젝트 간 이식이 가능하고, 게임 루프는 전제(직교성)를 깨지 않고 층으로만 얹힌다. — 설계 결정: [design-directions-2026-07.md](design-directions-2026-07.md) D2.
 
-> **COMPOSITIONS 층 상태(2026-07-21):** 계약(이벤트 버스)·파일럿 FEATURE 2종(TargetProps/ScoreHud)·첫 COMPOSITION(TargetShootoutMatch)·MatchView **코드 작성 완료 + 구조 불변식 grep 검증**(FEATURE↔FEATURE 참조 0). **라이브 게임 루프(2클라 점수전) 실증은 대기** — 당시 세션에 Unity `ai-game-developer` MCP가 미연결이라 프리팹 배선·Room.exe 재빌드·2클라 판정을 수행하지 못함. 실증 절차: 프리팹 2종(Target, MatchView)을 DefaultPrefabObjects에 C1 등록 + 씬 계층에 `===== COMPOSITIONS =====` 배치 → Room.exe 재빌드 → 2클라 조인 → 점수 동기·승자 공지·리셋 판정([build-desktop-client.md](build-desktop-client.md) 에폭-로그 골격 재사용). 상세: [HANDOFF.md](../../HANDOFF.md) §8.
+> **COMPOSITIONS 층 상태(2026-07-21, ✅ 라이브 실증 완료):** 계약(이벤트 버스)·파일럿 FEATURE 2종(TargetProps/ScoreHud)·첫 COMPOSITION(TargetShootoutMatch)·MatchView **코드 + 구조 불변식 grep 검증(FEATURE↔FEATURE 참조 0) + 라이브 게임 루프 실증 완료**. 프리팹 2종(Target/MatchView)을 DefaultPrefabObjects에 C1 등록(auto-populate 16→18) → `ShootoutRoom_1`(씬 계층에 `===== COMPOSITIONS =====` 포함, spawner SceneId 할당) 조립 → Room.exe 재빌드(room.log `Online Scene: ShootoutRoom_1`) → **단일 클라 서버권위 게임 루프**(명중→집계 1→2→3→선취 3점 승자 P0→리셋→재판) + **2클라 점수 동기 파리티**(에디터 A[clientId 1] 명중 → **별도 데스크톱 프로세스 B**[clientId 0, 하나도 안 쏨]가 동일 서버권위 스코어보드 수신·승자 P1 일치·리셋, Chat 부재 시 `Contents.GetById("chat")` 런타임 조회로 자체표시 폴백해 무해)까지 라이브 판정. **버스 런타임**도 별도 스모크로 PASS(전달·멱등·예외격리·해지). 절차·증거: [build-desktop-client.md](build-desktop-client.md) §12, [HANDOFF.md](../../HANDOFF.md) §5.
 
 **경계 문장:** 계약은 **모듈 경계**(등록·조회·토글·통지)에만 적용되며, 모듈 내부 구조는 규율하지 않는다. FEATURE 내부는 빠른 반복을 위해 자유롭게 작성해도 된다 — 격리가 보장되므로.
 

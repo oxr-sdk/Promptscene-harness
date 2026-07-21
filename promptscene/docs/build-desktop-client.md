@@ -183,3 +183,22 @@ Client.exe -psAutoJoin true -mstRememberUser false -screen-width 1000 -screen-he
 - **하네스 args**: `-psAutoJoin true -psChatTest true -psChatRole A|B -psChatEpoch <unixMs>`. A역=T≥12부터 5건 순차 발신, B역=A 5건 수신 후 2건 회신(반응형 — 느린 수동 구동에도 강건), 양측 TRANSCRIPT 덤프.
 - **정직 범위**: 텍스트 채팅 양방향, 2인, 데스크톱, **백필 없음**(늦게 조인한 클라는 과거 메시지 못 봄 — `ObserversRpc BufferLast`는 마지막 1건만 버퍼라 이력에 부적합; 이력 동기화는 수요 생기면). 3인+, VR 입력(가상 키보드), 귓속말/채널 분리, 입력 중 WASD 이동 억제는 밖.
 - **승격 검토**: FEATURE 내부 네트워크 사용이 3건이 된 시점의 `INetMessaging` 계약 승격 판정(보류 권고)은 [net-messaging-promotion-review.md](net-messaging-promotion-review.md).
+
+---
+
+## 12. D2 COMPOSITIONS 게임 루프 — 과녁 점수전 (2026-07-21)
+
+design-directions **D2**의 첫 실증. FEATURE 간 직접 참조 없이(=서로 모름) **COMPOSITION 층**이 두 직교 FEATURE를 하나의 서버권위 게임 루프로 조율함을 라이브 판정. 계약 추가는 **딱 하나**(인프로세스 `IEventBus`, `IRoomCore` 무변경 — contract §2). 네트워크 권위 프리팹 `MatchView`는 M3 `ChatChannelView` 동형(`ServerRpc(RequireOwnership=false)` 상행=서버 주입 ClientId 집계, `ObserversRpc` 하행=스코어보드 방송) — 신규 플랫폼 API 0.
+
+- **런타임 코드(XRCollabDemo, 이 레포 밖):**
+  - `Assets/PromptScene/Core/Contracts.cs` — `IEventBus`(Publish/Subscribe/Unsubscribe). `Core/RoomCore.cs` — `Awake`에서 `RegisterService<IEventBus>(new EventBus())`(내장 서비스 4번째, IRoomCore 무변경). 구현은 예외 격리(GetInvocationList+try/catch) + (T,handler) 멱등.
+  - `Content/TargetProps/`(`TargetProps.cs` = `TargetHitEvent` 발행 FEATURE, `TargetMarker.cs`, `Target.prefab`) / `Content/ScoreHud/ScoreHud.cs`(= `ScoreChangedEvent` 구독·IMGUI 표시 FEATURE). **두 소스 상호 타입 참조 0**(grep). `Compositions/TargetShootoutMatch/`(`TargetShootoutMatch.cs` = 조율 MonoBehaviour, `MatchView.cs`+`MatchView.prefab` = 서버권위 딕셔너리+RPC).
+- **프리팹·씬 조립(스크립트):** ① `Target`(Sphere: MeshFilter/Renderer/SphereCollider + NetworkObject + TargetMarker), `MatchView`(NetworkObject + MatchView)를 `PrefabUtility.SaveAsPrefabAsset` — 저장 시 FishNet `PrefabCollectionGenerator`가 **DefaultPrefabObjects에 auto-populate**(C1, 16→18). ② `ShootoutRoom_1`: `build_composed_room.cs` 골격 + `===== COMPOSITIONS =====` 헤더 추가, TargetProps/ScoreHud를 FEATURES·TargetShootoutMatch를 COMPOSITIONS 아래 배치, `SerializedObject`로 `TargetProps.targetPrefab`←Target·`TargetShootoutMatch.matchPrefab`←MatchView 배선, `AssignFishNetSceneIds`(spawner SceneId — §1 함정). ③ Room.exe 재빌드(`XumLobbyServerBuilderWindow` SceneList=[ShootoutRoom_1]) → room.log `Online Scene: ShootoutRoom_1` 확인.
+- **판정(라이브):**
+  - **§6.5 (에디터 클라):** Client 언로드·ShootoutRoom_1 로드·Desktop(Clone) IsOwner=True·RoomCore 4서비스·TargetProps/ScoreHud 자기등록+SetEnabled 무예외·MatchView 스폰 1개·Target 4개 스폰.
+  - **단일 클라 서버권위 루프:** 명중 주입(`bus.Publish(TargetHitEvent)` = TargetProps.OnClick의 명중 후 동작)→COMPOSITION→`MatchView.ReportHit`(ServerRpc)→**서버 집계 1→2→3**→ObserversRpc→ScoreChanged→ScoreHud. 방송 레코더(정적 `MatchView.OnBroadcast` 구독→파일)로 전이 캡처: `scores=[1]→[2]→[3] over=True winner=P0 → [] (리셋)`. ⚠️ resetDelay(기본 4s)가 짧아 MCP 왕복 지연으로 승자 스냅샷을 놓치기 쉬움 → **방송 레코더**로 잡을 것(폴링 리드는 리셋 후를 잡음).
+  - **2클라 점수 동기 파리티(신뢰 토폴로지=에디터+데스크톱 1):** 데스크톱 B(`-psAutoJoin true`, Player 서브타깃=Renderer≠Null)가 먼저 조인(MatchView 스폰), 에디터 A 조인(MatchView **재사용**, avatars=2/own1/remote1). A(clientId 1) 명중 → **B의 `clientB.log`**에 `[MatchView] scoreboard players=1 leader=P1 … over=True winner=P1` + 리셋이 그대로 찍힘(B는 한 발도 안 쐈는데 P1 점수 상승 관측 = 서버권위·동기 증명). B의 COMPOSITION은 Chat 부재를 `Contents.GetById("chat")` 런타임 조회로 감지→자체표시 폴백(무해).
+  - **버스 런타임 스모크(오프라인):** RoomCore 구성 후 `TryGet<IEventBus>` → 전달/멱등(재구독 중복호출 0)/예외격리(throw 핸들러가 타 핸들러·발행 중단 안 함)/해지/빈발행 안전.
+- **증거:** [screenshots/d2-shootout-scoreboard.png](screenshots/d2-shootout-scoreboard.png)(단일 P0 2/3+과녁4), [d2-shootout-2client.png](screenshots/d2-shootout-2client.png)(2클라 A뷰 P1 2/3), [d2-shootout-clientB-parity.txt](screenshots/d2-shootout-clientB-parity.txt), [d2-shootout-broadcasts.txt](screenshots/d2-shootout-broadcasts.txt).
+- **함정(신규/재확인):** ① 서버 빌드 후 클라 빌드 전 `standaloneBuildSubtarget=Player` 복구(트랩 A) — 안 하면 B가 헤드리스라 화면 없음. ② `EditorApplication.ExecuteMenuItem("Fish-Networking/Refresh Default Prefabs")`는 **메뉴명 부재로 실패** — 그러나 `SaveAsPrefabAsset`의 postprocessor가 이미 auto-populate하므로 무해(등록은 됨). ③ MatchView reset delay가 짧아 승자 스냅샷 폴링 리드로는 놓침 → 방송 레코더 필수. ④ 데스크톱에서 룸 Main Camera + 아바타 카메라 = "2 audio listeners" 경고가 콘솔을 도배 → 판정은 **파일 출력**(MatchView.Latest/레코더)으로, 콘솔 grep 의존 금지(VR은 §2.4-D처럼 Main Camera 비활성).
+- **정직 범위:** 구조 불변식(참조 0) + 버스 런타임 + §6.5 + **서버권위 집계·2클라 점수 동기·승자·리셋**까지. **밖:** 실제 마우스클릭 레이캐스트→명중(주입은 버스 경계), 게임 "재미"/밸런스, 3인+·B 대칭 득점, VR 입력, Target 머티리얼(URP 셰이더 미해결 마젠타 — 콜라이더/NetworkObject 정상), compose-room의 COMPOSITION 편입(후속).

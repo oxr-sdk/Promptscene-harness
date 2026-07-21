@@ -50,7 +50,7 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 | 3 | 런치패드 UI(registry→아이콘 그리드→SetEnabled) | ⬜ **보류/롤백** — 회고 [promptscene/docs/promptscene-launchpad-attempt.md](promptscene/docs/promptscene-launchpad-attempt.md). 단, 최소 플레이 HUD(`RulerHudUI`, registry→토글+클리어, IMGUI)는 2026-07-15 추가·검증(아이콘 그리드 런치패드는 아님) — §5c·build-desktop-client §9 |
 | 4 | `/scaffold-content` 스킬화 + LLM 신규 기능 생성 템플릿 | ✅ **라이브 검증(2026-07-09)**, 샘플 `ClickSpawnerContent`로 §5+§6.5 PASS |
 | 5 | `/compose-room` 합성 스킬 + 합성 하네스 | ✅ **라이브 검증(2026-07-13)**, `ComposedRoom_1`(Ruler)로 §5+§6.5 PASS. **N=3 실증(2026-07-20 M4)**: `ComposedRoom_2`(Chat+Ruler+Grabbable, 슬래시 발동) §5×3+§6.5 PASS |
-| D2 | COMPOSITIONS 층(게임모드) — 이벤트 버스 + 파일럿 FEATURE 2종 + 첫 COMPOSITION | 🟡 **코드+구조검증(2026-07-21)**: `IEventBus` 추가(IRoomCore 무변경) / TargetProps·ScoreHud(상호참조 0) / TargetShootoutMatch+MatchView. **라이브 2클라 게임 루프 실증 대기**(Unity MCP 미연결). 예측 견적 [prediction-survey.md](promptscene/docs/prediction-survey.md) |
+| D2 | COMPOSITIONS 층(게임모드) — 이벤트 버스 + 파일럿 FEATURE 2종 + 첫 COMPOSITION | ✅ **라이브 검증(2026-07-21)**: `IEventBus` 추가(IRoomCore 무변경) / TargetProps·ScoreHud(상호참조 0) / TargetShootoutMatch+MatchView. `ShootoutRoom_1`에서 단일 클라 서버권위 루프(집계→승자→리셋) + **2클라 점수 동기 파리티** + 버스 스모크 전부 PASS(§5). 예측 견적 [prediction-survey.md](promptscene/docs/prediction-survey.md) |
 
 **스킬 4종(현재 동작):**
 - `/promptscene:assemble-room <RoomName>` — ROOM 조립 + C1~C4 + 서버 재빌드/조인 + §6.5 런타임 신호 라이브 증명.
@@ -60,14 +60,20 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 
 **정직 계약:** 하네스는 **§5 구조/계약 적합성만** 증명한다. 기능의 실제 동작·미감은 **비검증**(사람/비전 루프 필요).
 
-## 5. 직전 세션(2026-07-21 — D2 COMPOSITIONS 층 증축 + 예측 정찰; 게임 루프 코드·정찰 완료, 라이브 실증 대기)
+## 5. 직전 세션(2026-07-21 — D2 COMPOSITIONS 층 증축 + 예측 정찰; ✅ 라이브 게임 루프 실증 완료 — 단일 클라 서버권위 루프 + 2클라 점수 동기)
 
 - **동기:** 게임 루프 요청(과녁 맞추기 점수전)으로 **"서로 통신해야 하는 기능 2개"** 수요 발생 → design-directions **D2(COMPOSITIONS 층)** 착수 조건 충족. 전제(직교성)를 깨지 않고 조율자 층을 위에 얹는 원안 그대로 구현.
 - **D2-1 계약 추가 (딱 하나):** 인프로세스 타입드 이벤트 버스 `IEventBus`(Publish/Subscribe/Unsubscribe)를 `Contracts.cs`에 additive로 추가. **`IRoomCore` 인터페이스 무변경** — 내장 서비스로 등록(`RoomCore.Awake`)하고 `TryGet<IEventBus>`로 조회(v0.2 "서비스 추가해도 코어 무변경" 원칙 준수). 메커니즘-비정책(§4.5): **인프로세스 전용, 네트워크 전송 아님** — 복제는 여전히 프리팹 RPC. 구현은 예외 격리 + (T,handler) 멱등.
 - **D2-2 파일럿 FEATURE 2종 (서로 모름이 핵심):** `TargetProps`(과녁 스폰→클릭 명중 시 `TargetHitEvent` 발행까지만, 점수 모름) + `ScoreHud`(`ScoreChangedEvent` 구독·IMGUI 표시만, 과녁 모름). **두 소스 상호 타입 참조 0 (grep 검증)** + 각자 `PromptScene.Core`만 의존 — 이 층의 §5급 신규 검증 신호. 위치: `Assets/PromptScene/Content/TargetProps/`, `.../ScoreHud/`.
 - **D2-3 첫 COMPOSITION:** `TargetShootoutMatch`(+ 네트워크 권위 프리팹 `MatchView`, **ChatChannelView 동형** — `ServerRpc(RequireOwnership=false)` 상행 + `ObserversRpc` 하행, 발신자=서버 주입 ClientId, 신규 플랫폼 API 0). TargetHit 구독 → **서버 권위** 집계 → 선취 N점(기본 3) 승자 공지(자체 IMGUI 배너 + ScoreChangedEvent MatchOver; Chat 부재 시에도 무해 — `Contents.GetById("chat")` 런타임 조회로만) → resetDelay 후 리셋·재판. 위치: `Assets/PromptScene/Compositions/TargetShootoutMatch/`.
 - **P-G0 예측 정찰 (완료, 읽기 전용):** [prediction-survey.md](promptscene/docs/prediction-survey.md). scout가 소스에서 수집 + 메인이 하중 주장 재검증. 판정 — FishNet 4.6.12 예측은 **XumNet 통과해 직접 도달 가능**(XumNet Runtime .cs에 예측 코드 0건, XumView는 NetworkBehaviour 직상속·예측 파이프라인 무개입). 단 **NetworkManager에 PredictionManager + 프리팹별 `_enablePrediction`**을 요구해 M-시리즈의 "SYSTEMS 무수정"을 깬다 → D4-2 "대공사, 보류"의 이유가 *SYSTEMS 해동+검증 인프라 비용*임이 확증. 지연/손실 시뮬 = FishNet 내장 `LatencySimulator` 존재.
-- **정직 범위 (중요):** **코드 작성 + 구조 불변식 grep 검증까지만.** 게임 루프의 **라이브 2클라 실증은 미수행** — 이 세션에 XRCollabDemo의 Unity `ai-game-developer` MCP가 **미연결**이라 (a)프리팹 2종(Target/MatchView) DefaultPrefabObjects C1 등록 (b)`===== COMPOSITIONS =====` 씬 배치 (c)Room.exe 재빌드 (d)2클라 점수 동기·승자·리셋 판정을 전혀 하지 못함. **버스 런타임 동작·서버 권위 집계·2클라 게임 루프는 전부 비검증.** 실증 절차는 §8. (compose-room은 아직 COMPOSITION을 모름 — 편입은 후속.)
+- **D2-4 라이브 실증 (✅ 완료, 후속 세션에서 MCP 연결 후 수행):** 프리팹 2종(Target/MatchView) FishNet auto-populate로 DefaultPrefabObjects C1 등록(16→18) → `ShootoutRoom_1` 조립(C1/C3=True, spawner SceneId 할당, `===== COMPOSITIONS =====` 층 포함, TargetProps.targetPrefab·TargetShootoutMatch.matchPrefab 직렬 배선) → Room.exe 재빌드(room.log `Online Scene: ShootoutRoom_1`) → 라이브 판정:
+  - **§6.5 (에디터 클라):** 로비 소멸(Client 언로드)·`ShootoutRoom_1` 로드·아바타 Desktop(Clone) IsOwner=True·RoomCore 4서비스(IEventBus 포함) 등록·TargetProps/ScoreHud 자기등록+SetEnabled 무예외·MatchView 스폰(1개)·Target 4개 스폰 — 전부 PASS.
+  - **단일 클라 서버권위 루프:** 명중(TargetHitEvent 버스)→COMPOSITION→MatchView.ReportHit(ServerRpc, 발신자=서버주입 ClientId)→**서버 집계 1→2→3**→ObserversRpc 방송→ScoreChanged 버스→ScoreHud 표시. 선취 3점 **승자 P0 공지**(over=True)→resetDelay 후 **리셋(빈 보드)→재판**. 방송 레코더 로그로 전 전이 캡처.
+  - **2클라 점수 동기 파리티:** 에디터 A(clientId 1) 명중 → **별도 데스크톱 프로세스 B**(clientId 0, 한 발도 안 쏨, Player 서브타깃 창모드=Renderer≠Null)가 `clientB.log`에 **동일 서버권위 스코어보드** 수신(P1 1→2→3, over=True **winner=P1** 일치, 리셋). B의 COMPOSITION이 Chat 부재를 `Contents.GetById("chat")` 런타임 조회로 감지해 자체표시 폴백(무해). 상호가시(avatars=2, own1/remote1), 공유 MatchView 1개(재사용, 중복 없음).
+  - **버스 런타임 스모크:** IEventBus 전달·(T,handler)멱등·예외격리·해지·빈발행 안전 전부 PASS.
+  - 증거: [screenshots/d2-shootout-scoreboard.png](promptscene/docs/screenshots/d2-shootout-scoreboard.png)(단일 P0 2/3), [d2-shootout-2client.png](promptscene/docs/screenshots/d2-shootout-2client.png)(2클라 A뷰 P1 2/3), [d2-shootout-clientB-parity.txt](promptscene/docs/screenshots/d2-shootout-clientB-parity.txt)(B 방송 로그), [d2-shootout-broadcasts.txt](promptscene/docs/screenshots/d2-shootout-broadcasts.txt). 절차 SSOT: [build-desktop-client.md](promptscene/docs/build-desktop-client.md) §12.
+- **정직 범위 (중요):** 증명된 것 = **구조 불변식(FEATURE↔FEATURE 참조 0) + 버스 런타임 + §6.5 + 서버권위 집계 + 2클라 점수 동기·승자·리셋.** **밖(비검증):** 게임의 "재미"/밸런스, 실제 마우스 클릭 레이캐스트→명중 판정(주입은 버스 경계 TargetHitEvent에서 — 클릭 감지는 TargetProps 내부 로직이라 별도), 3인+, VR 입력, Target 프리팹 머티리얼(URP 셰이더 미해결로 마젠타 — 콜라이더/NetworkObject는 정상, count=4). compose-room은 아직 COMPOSITION을 모름 — 편입은 후속(§8).
 
 ## 5a. 그 직전 세션(2026-07-20 — M4 다기능 합성 피날레, 한 줄 → 3기능 룸)
 
@@ -157,18 +163,12 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 > **설계 방향 기록:** 2026-07 아키텍처 토론의 결정 사항(사거리 재정의, COMPOSITIONS 층, 에셋 전략 등)은 [design-directions-2026-07.md](promptscene/docs/design-directions-2026-07.md)에 정리됨.
 
 **바로 이어서:**
-0. 🟡 **D2 COMPOSITIONS 라이브 실증 (미완 — 최우선).** 코드·구조검증은 §5에서 끝났고, 남은 건 **Unity `ai-game-developer` MCP를 연결한 세션에서** 게임 루프를 실제로 돌려 판정하는 것. 절차(build-desktop-client 골격 재사용):
-   1. **프리팹 2종 제작·등록(C1):** `Target`(NetworkObject + Collider + Renderer + `TargetMarker`)과 `MatchView`(NetworkObject + `MatchView`)를 만들어 `Assets/DefaultPrefabObjects.asset`에 등록(룸/클라 NM `_spawnablePrefabs` 일치). MatchView는 SyncVar 없음 — 서버 권위 딕셔너리 + ObserversRpc(ChatChannel 동형).
-   2. **직렬화 배선:** `TargetProps.targetPrefab`←Target, `TargetShootoutMatch.matchPrefab`←MatchView (M4에서 확인된 "빌더는 AddComponent만, 프리팹 필드는 수동/후처리 배선" 갭 — compose-room SKILL Stage 4 절차 재사용).
-   3. **씬 계층:** `===== COMPOSITIONS =====` 헤더 추가 + `TargetShootoutMatch`를 그 아래 배치(+ TargetProps/ScoreHud를 FEATURES 아래). `build_composed_room.cs`에 COMPOSITIONS 층 배치 로직 확장 필요(현재 빌더는 FEATURES까지만 — compose-room은 아직 COMPOSITION 미인지).
-   4. **Room.exe 재빌드**(FishNet 씬오브젝트/프리팹컬렉션 변경 → 필수) → 서버 기동 → **2클라 조인**(에디터 + 데스크톱 exe, cfg localhost, 웜 스타트).
-   5. **판정(에폭-로그):** ①A·B 각자 명중 → 양측 점수 일치 상승 ②선취 N 도달 → 양측 동일 승자 공지 ③리셋 후 재판 ④FEATURE 상호참조 0 재확인 + 스크린샷 1장(두 아바타·과녁·점수판). 함정: 클라 빌드에 신규 룸 번들 포함, 실행 중 exe 재빌드 불가, 트랩 I(IsClientStarted 게이트)·K(웜 스타트).
-   - ⚠️ **정직 계약:** 현재까지 버스 런타임·서버 권위 집계·게임 루프는 **비검증**. 위 5단계 PASS 전까지 "실증됨"으로 기록 금지.
+0. ✅ **완료 — D2 COMPOSITIONS 라이브 실증(2026-07-21, §5·§12).** 프리팹 2종 C1 등록 → `ShootoutRoom_1` 조립 → Room.exe 재빌드 → **단일 클라 서버권위 루프 + 2클라 점수 동기 파리티 + 버스 런타임** 전부 라이브 PASS. 절차 SSOT는 [build-desktop-client.md](promptscene/docs/build-desktop-client.md) §12. **남은 후속(선택):** 실제 마우스-클릭 레이캐스트 경로 실증(현재 주입은 버스 경계 TargetHitEvent), Target 머티리얼 URP 셰이더 교정(현재 마젠타 — 기능 무관), 3인+·B도 득점하는 대칭 매치, compose-room의 COMPOSITION 편입(아래 §8-3).
 1. ✅ **완료** — Phase 5 `/compose-room` 관통(§5e). 스킬 신설 커밋과 검증·문서 갱신 커밋을 분리해 기록.
 2. ✅ **완료** — **D4-1 잡기 기반 소유권(§5b, 2026-07-16 M2).** `GrabbableProps` FEATURE로 2클라 핸드오버 5신호 PASS, SYSTEMS/계약 무수정.
 2b. ✅ **완료** — **M3 채팅(§5a, 2026-07-20).** `ChatContent` FEATURE로 2클라 채팅 양방향 4신호 PASS — **원래 요청 3종(룰러 공유 M1 / 그랩 M2 / 채팅 M3) 완주.** 메시징 계약 승격은 검토서로 **보류** 판정([net-messaging-promotion-review.md](promptscene/docs/net-messaging-promotion-review.md)) — 두 번째 순수 버스 소비자가 생기면 재개.
 2c. ✅ **완료** — **M4 다기능 합성 피날레(§5, 2026-07-20).** 자연어 한 줄 → `/compose-room` **슬래시 표면 발동** → 3기능(Chat+Ruler+Grabbable) 선택·ClickSpawner 비선택(음성 증거) → `ComposedRoom_2` §6.5+§5×3 PASS + 2클라 데모(시연). **§8-3의 "다기능 합성(2개+) 실증"과 "슬래시 표면 발동 검증"은 이것으로 닫힘.**
-3. **로드맵 다음 순서(design-directions D5):** D4-1 완료 → **D2(COMPOSITIONS 층) 착수됨(2026-07-21, 코드+구조검증; 라이브 실증은 위 §8-0)** → 남은 갈래 D3(생성 에셋 파이프라인) / D4-2(예측, 견적 완료·대공사 보류). ⚠️ 소유권 계약 승격(IRoomCore 헬퍼)은 **두 번째 잡기-소유권 소비자**가 실제로 생길 때 재검토(grab-ownership-survey 판정). ⚠️ **이벤트 버스 두 번째 순수 소비자** 관련: net-messaging 승격 검토서의 "두 번째 순수 버스 소비자" 트리거와 별개 — IEventBus는 인프로세스 조율용, INetMessaging은 네트워크 방송용(혼동 금지).
+3. **로드맵 다음 순서(design-directions D5):** D4-1 완료 → **D2(COMPOSITIONS 층) ✅ 라이브 실증 완료(2026-07-21, §5·§12)** → 남은 갈래 D3(생성 에셋 파이프라인) / D4-2(예측, 견적 완료·대공사 보류). ⚠️ 소유권 계약 승격(IRoomCore 헬퍼)은 **두 번째 잡기-소유권 소비자**가 실제로 생길 때 재검토(grab-ownership-survey 판정). ⚠️ **이벤트 버스 두 번째 순수 소비자** 관련: net-messaging 승격 검토서의 "두 번째 순수 버스 소비자" 트리거와 별개 — IEventBus는 인프로세스 조율용, INetMessaging은 네트워크 방송용(혼동 금지).
 4. **잡기 소유권 확장 여지(M2는 최소 관통):** VR 컨트롤러 그랩, 오너 이탈 중 잡힘 상태(NT 송신자 공백) 처리, 반납형 정책, 다중 소품, 3인 경합.
 3. **compose-room 확장 여지:** ~~다기능 합성(2개+) 실증~~ ✅ **닫힘(M4, §5a — N=3, 슬래시 표면 발동 포함)**. 잔존: `mode:"extend"`(기존 룸에 기능 추가), 파라미터(`params`) 실제 전달, MutuallyExclusive 충돌 케이스 실증. **신규(D2): COMPOSITION 편입** — compose-room은 아직 FEATURES만 조립하고 COMPOSITIONS 층을 모른다. 자연어→게임모드 선택+COMPOSITION 배치+프리팹 배선까지 오케스트레이션하려면 `build_composed_room.cs`에 COMPOSITIONS 배치 로직 확장 필요(§8-0 절차의 씬 배치 부분).
 
