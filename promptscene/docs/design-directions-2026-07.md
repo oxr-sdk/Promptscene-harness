@@ -111,6 +111,13 @@ COMPOSITION만 안다. (UE5 GameMode / 미디에이터 패턴과 동일.)
   > `GrabbableView`가 `XumView.RequestOwnership` 직접 사용 — M1 `RulerMeasurementView`와
   > 동형)로 2클라 잡기→놓기→핸드오버(Owner A→B→A)를 라이브 판정. 5신호 전부 PASS.
   > SYSTEMS/계약 무수정. 결과·함정: [grab-ownership-survey.md](grab-ownership-survey.md) §실증.
+- **1.5단계 — 던지기(비경합 투사체) ✅ 실증됨(2026-07-22, V1):** 잡기(1단계)의
+  자연스러운 연장. 던진 사람이 비행 내내 오너(Takeover, 비반납) + client-auth
+  `NetworkTransform`이 궤적 전파 + 명중→이벤트→COMPOSITION 서버권위 점수. **신규
+  기계 0 — 전부 재조합**(M1/M2 NT·소유권 + D2 버스·MatchView + XRI throwOnDetach).
+  **아무도 공중의 다트를 뺏지 않으므로 예측 없이 성립** → 2단계의 경계선이 여기서
+  선명해진다: **비경합=✅, 경합=⛔(2단계).** 실증: [build-desktop-client.md](build-desktop-client.md) §13,
+  [capability-map.md](capability-map.md).
 - **2단계 (대공사, 보류):** client-side prediction — 날아가는 공을 서로
   뺏는 연속 경합에만 필요. 얼려둔 SYSTEMS를 녹여 재검증해야 하는 공사.
   착수 전 확인 사항: FishNet의 prediction API가 XumNet 래퍼를 통과해

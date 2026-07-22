@@ -202,3 +202,28 @@ design-directions **D2**의 첫 실증. FEATURE 간 직접 참조 없이(=서로
 - **증거:** [screenshots/d2-shootout-scoreboard.png](screenshots/d2-shootout-scoreboard.png)(단일 P0 2/3+과녁4), [d2-shootout-2client.png](screenshots/d2-shootout-2client.png)(2클라 A뷰 P1 2/3), [d2-shootout-clientB-parity.txt](screenshots/d2-shootout-clientB-parity.txt), [d2-shootout-broadcasts.txt](screenshots/d2-shootout-broadcasts.txt).
 - **함정(신규/재확인):** ① 서버 빌드 후 클라 빌드 전 `standaloneBuildSubtarget=Player` 복구(트랩 A) — 안 하면 B가 헤드리스라 화면 없음. ② `EditorApplication.ExecuteMenuItem("Fish-Networking/Refresh Default Prefabs")`는 **메뉴명 부재로 실패** — 그러나 `SaveAsPrefabAsset`의 postprocessor가 이미 auto-populate하므로 무해(등록은 됨). ③ MatchView reset delay가 짧아 승자 스냅샷 폴링 리드로는 놓침 → 방송 레코더 필수. ④ 데스크톱에서 룸 Main Camera + 아바타 카메라 = "2 audio listeners" 경고가 콘솔을 도배 → 판정은 **파일 출력**(MatchView.Latest/레코더)으로, 콘솔 grep 의존 금지(VR은 §2.4-D처럼 Main Camera 비활성).
 - **정직 범위:** 구조 불변식(참조 0) + 버스 런타임 + §6.5 + **서버권위 집계·2클라 점수 동기·승자·리셋**까지. **밖:** 실제 마우스클릭 레이캐스트→명중(주입은 버스 경계), 게임 "재미"/밸런스, 3인+·B 대칭 득점, VR 입력, Target 머티리얼(URP 셰이더 미해결 마젠타 — 콜라이더/NetworkObject 정상), compose-room의 COMPOSITION 편입(후속).
+
+---
+
+## 13. 던지기 — 다트 (V1, 2026-07-22)
+
+D2 점수전 위에 **던지기(비경합 투사체)**를 얹어 라이브 판정. **신규 플랫폼 API 0** — [capability-map](capability-map.md)의 "던지기=재조합" 첫 실증. 던진 사람이 비행 내내 오너(Takeover, 비반납), client-auth `NetworkTransform`이 궤적 전파, 명중→**자체 이벤트**→COMPOSITION→서버권위 점수. **뺏기 경합 전까지 D4-2(예측) 불요.**
+
+- **런타임 코드(XRCollabDemo, 이 레포 밖) — `Assets/PromptScene/`:**
+  - `Content/DartProps/DartProps.cs` — `IToggleableContent`(Core-only). `SetEnabled(true)`→`INetSpawn`으로 이 클라의 다트 N개 스폰(오너=스폰 클라, 각자 자기 탄약). M2 `GrabbableProps`와 동형.
+  - `Content/DartProps/DartView.cs` — 프리팹 내부 FishNet `NetworkBehaviour`. **오너만 물리 시뮬**(`isKinematic = !(IsOwner && _inFlight)` — 정지·비오너·명중후엔 kinematic, 비행 중에만 dynamic → 스폰 다트가 안 떨어지고 대기, 명중 시 꽂혀 정지), 입력경로=`XRGrabInteractable` 단일(그랩→`XumView.RequestOwnership`, 릴리즈→`throwOnDetach`). **첫 비행 충돌 1회** 오너가 `DartHitEvent{Struck,Position}` 발행 후 정지. 데스크톱 검증용 주입점 `ThrowLocal(velocity)`(입력경로 아님 — 릴리즈 직후 velocity 주입만). **다트끼리 충돌 무시**(`Physics.IgnoreCollision`)로 자기 탄약더미에 막혀 멈추는 것 방지.
+  - `Content/DartProps/DartHitEvent.cs` — DartProps 소유 이벤트. **TargetProps 무참조**(FEATURE↔FEATURE 0 유지) — 다트는 "무엇을 쳤나"만 싣고, "과녁인가?"는 COMPOSITION이 판정(2026-07 결정: 공유 이벤트로 승격 대신 자체 이벤트).
+  - `Compositions/TargetShootoutMatch/TargetShootoutMatch.cs` — `Subscribe<DartHitEvent>` 1줄 추가. `OnDartHit`이 `Struck`에 `TargetMarker` 있으면(=COMPOSITION만 아는 정책, COMPOSITION→FEATURE 허용) **클릭과 동일한 `MatchView.ReportHit`** 경로로 라우팅 → **버스 배당금: 한 점수 루프, 두 소스(클릭/다트)**.
+  - 프리팹 `Content/DartProps/Dart.prefab` — `GrabbableProp` 골격 클론(NetworkObject + XumView(Takeover) + client-auth NT) + Rigidbody(mass 0.1, gravity, **ContinuousDynamic**=고속 관통 방지) + BoxCollider + XRGrabInteractable(throwOnDetach) + DartView. **C1**: DefaultPrefabObjects auto-populate(index 17, 총 18). URP/Lit 머티리얼(V1c).
+- **씬·빌드:** `ShootoutRoom_1`의 `===== FEATURES =====`에 `DartProps` 편입(dartPrefab 배선) → Room.exe 재빌드(SceneList=[ShootoutRoom_1], room.log `Online Scene: ShootoutRoom_1`) + Client.exe 재빌드(DPO+씬 동기).
+- **하네스 args**: `-psAutoJoin true -psDartTest true -psDartRole A|B -psDartEpoch <unixMs>`. A역=TargetProps+DartProps 인에이블→T≥8/13/18에 각 과녁으로 **탄도(ballistic) 조준** 다트 발사(`ThrowLocal`, 비행시간 0.5s로 velocity 역산). B역=관측만. 런처 `Builds/App/play-darttest.ps1`(서버 cfg localhost + 직렬화 조인 + 공유 에폭).
+- **판정(V1a, 2클라 데스크톱, PASS 2026-07-22):**
+  - **A(thrower, myId=0):** 다트 3개 스폰(대기 중 안 떨어짐) → 3발 발사 → **3/3 명중** → 서버권위 P0:1→2→3 → **over=True winner=P0**(선취 3) → resetDelay 후 리셋. dart-view 로그: `first flight collision with 'Target(Clone)' ... published DartHitEvent (owner)`.
+  - **B(observer, myId=1):** ①**비행 궤적 관측** — 에폭 위치로 다트를 공중에서 포착(T=9 z=1.38, T=14 z=1.85 등 스폰 z=0.5→과녁 z=3.5 사이) ②**Owner=A 유지** — 매 관측 `owner=0 mine=False`(비행 중·명중 후 내내) ③**점수 양측 동기** — B가 `[MatchView] scoreboard` 방송 수신, P0:1→2→3→over=True winner=P0→리셋(B는 한 발도 안 쐈음) ④위치 교차 일치(B (-0.85,1.37,3.11) ≈ A (-0.86,1.37,3.12)). avatars own1/remote1 상호가시.
+- **V1c 마젠타 교정:** Target/Dart에 URP/Lit 머티리얼(빨강/노랑) 배선 + **"에러 셰이더 0" 검사**(`Assets/PromptScene/Harness/Editor/ShaderSanityCheck.cs`, 메뉴 `PromptScene/Check Error Shaders`) — 7 슬롯 스캔, `Hidden/InternalErrorShader`/null 0건 PASS. 실기기 가기 전 필수 게이트.
+- **V1b XR 입력경로(소스 검증):** `throwOnDetach` 릴리즈 velocity는 `XRGrabInteractable`이 **attach/targetPose 프레임 델타**를 평활화해 산출([XRGrabInteractable.cs] `m_ThrowSmoothingLinearVelocityFrames[f] = (targetPose - lastPose)/dt`, `Detach()`에서 적용) — **실기기/시뮬 동일 코드경로**(인터랙터 포즈만 다름, XRGI는 입력원을 모름). **발견·수정:** `Detach()`는 **kinematic Rigidbody를 던지지 않음**("Cannot throw a kinematic Rigidbody") — 다트는 정지 시 kinematic이라 XR 그랩→릴리즈에서 발사 실패 가능 → `DartView.OnGrabbed/OnReleased`에서 non-kinematic 강제(소스 근거 수정, 데스크톱 `ThrowLocal` 경로는 무관). **⚠️ 라이브 XR 시뮬 스윙은 미실행 — V2 재검증 항목**(아래).
+
+### V2 준비물 (다음: 실기기 던지기)
+- **Quest 3 충전 + adb 페어링** 선행. 클라 APK 빌드·배포는 [build-meta-client.md](build-meta-client.md)(검증됨) + `/deploy-client Meta` 스킬. 화면 깜빡임/시점고정은 build-meta-client §2.4-D.
+- **V1b에서 넘어온 재검증 항목:** ① XR 시뮬레이터/실기기로 **그랩→스윙→릴리즈→throwOnDetach velocity 계승**을 실제로 관측(코드경로는 동일 검증됨, 스윙 magnitude·손맛은 비검증). 시뮬 재현법: 룸 씬에 `XRInteractionSimulator`(XRI 패키지 Runtime, 샘플/매니페스트 불요) + 인터랙터 배치 → 시뮬 컨트롤러로 다트 그랩 후 이동(스윙)→릴리즈. 릴리즈 velocity가 0/미미하면 스윙 프레임수(`throwSmoothingDuration`)·이동 속도 조정. ② non-kinematic 강제 수정이 `Detach()` 순서상 실제로 발사를 성립시키는지 실기기 확인. ③ 다트끼리 IgnoreCollision이 VR 다중 그랩에서도 유지되는지.
+- **정직 계약(V1의 밖 = V2의 몫):** 손맛·실기기 함정(build-meta-client §2.4-D 등)·크로스플랫폼(HMD+데스크톱 동시)·경합 뺏기(D4-2)는 **V2 몫이며 V2의 판정자는 사용자.** V1은 데스크톱 2클라에서 **물리·비행 전파·소유권·명중→점수 동기**(구조/동작)까지만 증명.
