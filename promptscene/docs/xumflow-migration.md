@@ -370,3 +370,12 @@ PromptSceneRoom_1.unity
 
 **정직:** 증명 = **단일 에디터 host에서 사람이 UI로 Ruler 조작**(토글·측정·지우기·클릭 억제). 밖 = 2클라 UI 동기, VR 입력(가상 키보드), Phase 3 런치패드(아이콘 그리드) — **이건 "최소 HUD"지 런치패드 아님.**
 
+### Ruler 크로스플랫폼 UI (World Space uGUI + XRI) + XR world-click (✅ 2026-07-23)
+
+IMGUI(데스크톱 전용)를 **크로스플랫폼 World Space uGUI**로 교체(입력소스 독립). 절차·함정 SSOT = **[build-studio-room.md](build-studio-room.md) §5~§6**. 요지:
+- **저작 객체 방식**(런타임 생성 아님, 사용자 지시): World Space Canvas + 버튼을 실제 씬 GameObject로 저작(`===== UI =====/RoomHud`), `RoomHudBinder`(hot)가 런타임 배선(LeaveButton 패턴 — 직렬 onClick→hot 메서드는 target=null). 캔버스=`GraphicRaycaster`(마우스)+**`TrackedDeviceGraphicRaycaster`**(XR). **빌보드 필수**(GraphicRaycaster ignoreReversedGraphics → 뒷면=mirror+클릭불가). 한글=**레거시 Text + 동적 OS 폰트**(studio 한글 TMP 자산 부재).
+- **XR world-click(`XRWorldClicker` + `SimpleClickProvider.SubmitExternalRay`):** 컨트롤러/손 select 엣지 → UI 아니면 인터랙터 레이 월드 레이캐스트 → 마우스와 동일 핸들러 → Ruler 측정. 계약 §4.5 mechanism 추가(IInteraction 무변경). 인터랙터가 `{Left,Right} Hand/` 아래 공유 → **손도 동일 코드 커버**.
+- **라이브 판정:** 데스크톱 마우스(사람 PASS) + **XR 컨트롤러 sim**(사람: UI 버튼 ON + 바닥 측정 PASS — deviceMode=Controller 전환). **손 sim = 불가**("Hand Actions not interactive" + poke 사거리 밖) → 실기기 V2. UnityXR 아바타는 studio 자연감지로 안 떠서(로더 미활성) **스포너 임시 강제 후 원복.**
+- **패키지 정정(§3a 보강):** `com.unity.xr.hands`·`com.unity.xr.openxr`·`xr.management`·`xr.core-utils`가 **PackageCache에 전이 의존으로 존재**(manifest 명시 핀은 xr.interaction.toolkit 3.3.1+inputsystem뿐). §3a "openxr/xr.hands 없음"은 *manifest 명시 핀 기준* — 전이 resolve로는 존재하나 **XR 로더 미활성**이라 감지=desktop.
+- **신규 문서:** [build-studio-room.md](build-studio-room.md) — studio 룸 조립·검증 재사용 절차(겪은 것만). ⚠ 배포(Smart Deploy)는 미경험이라 미포함(`build-studio-deploy.md` 후속).
+
