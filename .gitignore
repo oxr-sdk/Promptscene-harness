@@ -1,6 +1,12 @@
 # Unity project — has its own git repo (oxr-sdk/XRCollabDemo)
 /XRCollabDemo/
 
+# Unity project — has its own git repo (oxr-sdk/XumFlow, runtime branch)
+/XumFlow/
+
+# Unity project — same repo, studio branch (content-authoring / port target)
+/XumFlow-studio/
+
 # Huge import log (161MB)
 /xrcollab_import.log
 
