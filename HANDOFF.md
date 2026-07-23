@@ -27,6 +27,10 @@ Claude Code 플러그인(이 레포 = `promptscene-harness`).
 | **promptscene 플러그인** | `c:\J_0\promptscene` | 플러그인 본체(plugin.json/skills 4종/hooks+회귀 러너). install EBUSY 회피 위해 레포 루트에서 분리 | marketplace.json은 루트 `.claude-plugin/`에 잔류. 로드 방식은 §9 |
 | **XRCollabDemo** | `c:\J_0\XRCollabDemo` | 타깃 Unity 6 앱(`6000.3.11f1`), MCP 포트 **27826** | 런타임 코드가 사는 곳: `Assets/PromptScene/`. `Library/PackageCache`는 **읽기 전용**. |
 | **DeepChairProject** | `C:\Unity\DeepChairProject` | 기능 **레퍼런스** 소스(ruler/laser/memo 등), Unity `6000.1.7f1`, MCP **22863** | 앱레이어가 XRCollabDemo에 없어 **lift-and-shift 불가 → 계약 위에 클린 재구현**이 정석. |
+| **XumFlow (studio)** | `c:\J_0\XumFlow-studio` | 포트 **타깃** 후보(콘텐츠 저작 프로젝트), studio 브랜치 `@7ccd554`, Unity `6000.3.11f1`, MCP `ai-game-developer`@**21017** | gitignore `/XumFlow-studio/`. 환경 살아있음 실증(오픈·컴파일·§5 스폰). SSOT: [promptscene/docs/xumflow-migration.md](promptscene/docs/xumflow-migration.md) §7 |
+| **XumFlow (runtime)** | `c:\J_0\XumFlow` | 다운로더/플레이어 빌드(runtime 브랜치 `@200a4a2`) | 대조·인용용 보존. gitignore `/XumFlow/` |
+
+> **XumFlow studio 트랙 상태(2026-07-23):** studio 클론 + 선행조건(codebook/XREAL 회수) + 에디터 오픈·컴파일 클린 + **§5 베이스라인 스폰 PASS(T_RoomB, 사용자 GUI)** + 우리 코드 자리 확정(`ContentLogic/App.HotUpdate.asmdef` = baked 경계) + **MCP 0.66.0 배선(Connected)**. 세션 재시작 후 MCP로 studio 구동 예정. **핵심 규칙/함정(SSOT=xumflow-migration.md §7):** ①MCP 버전 ∝ 프로젝트 UXM 버전(studio UXM 1.8.5→MCP 0.66.0 / XRCollab UXM 1.8.1→0.76.3, 서버·포트 분리) ②MCP NuGet DLL은 UPM 비관리 → 버전 변경 시 클린 재설치(폴더 삭제 후 0.66.0 자동복원, 다운로드 중 과도기 CS 에러=행 아님) ③씬 로드 키=leaf 폴백 가능·`hostMode=true`라야 단일 에디터 아바타 스폰 ④XRCollab UXM URL 언핀 = 잠재 취약(재resolve 시 어댑터-MCP 충돌 재발). 길 A(구버전 MCP, UXM 무수정) 채택 — UXM 담당자에 versionDefine 완화 요청됨, 상류 수정 오면 최신 MCP 이전 재검토.
 
 - **런타임 코드 루트:** `XRCollabDemo\Assets\PromptScene\` — `Core\`(namespace `PromptScene.Core`: Contracts / RoomContentRegistry / SimpleClickProvider / RoomCore) + `Content\`(FEATURE 모듈: `Ruler\RulerContent.cs`, `ClickSpawner\ClickSpawnerContent.cs`).
 - **규격 SSOT:** [promptscene/docs/promptscene-content-contract.md](promptscene/docs/promptscene-content-contract.md) — 계약 인터페이스·씬 계층·불변식 C1~C4·검증 하네스·로드맵.
