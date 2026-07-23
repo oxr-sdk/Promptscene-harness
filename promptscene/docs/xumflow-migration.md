@@ -321,3 +321,36 @@ UXM 1.8.5 어댑터가 `using com.IvanMurzak.Unity.MCP.Runtime.Data;`(+`GameObje
 - **증명됨:** RoomCore(4서비스) + Ruler(자기등록·토글·네트워크 측정 스폰·RPC 끝점 전파)가 **studio 샘플룸 SYSTEMS 위에서 §5/§6.5 성립**. 단일 에디터 host QuickTest, MCP 자동판정, Error 0.
 - **밖(후속 세션):** 2클라 파리티(별도 데스크톱 프로세스), 실제 마우스-클릭 레이캐스트, TargetProps/ScoreHud/COMPOSITION(D2) 이식, 원격 Addressables 배포(Build & Package), 실기기/XR 입력. **스킬(assemble/compose/scaffold) Smart-Deploy 재작성**은 이 관통으로 절차가 실측되었으니 다음 단계(스킬 정독 후).
 
+### 구조 정리 — 5층 폴더 안으로 (✅ 2026-07-23, SceneId 안전 검증 동반)
+
+관통 직후 `PromptSceneRoom_1`을 contract §1 씬 계층으로 완전 정리. **각 이동마다 QuickTest**, 특히 FishNet 씬 네트워크 오브젝트는 SceneId 검증. **studio판 실측 하이어라키(최종, 디스크 저장 확인):**
+
+```
+PromptSceneRoom_1.unity
+├── ===== SYSTEMS =====
+│   ├── RoomCore                     RoomCore(+SimpleClickProvider 런타임 자동추가)
+│   └── Player
+│       └── --PLAYER_SPAWNER {sp}    XumPlayerSpawner + NetworkObject + XumNetwork + XumSimpleSpawnClientExample
+├── ===== FEATURES =====
+│   └── Ruler                        RulerContent (measurementPrefab 배선)
+├── ===== ENVIRONMENT =====
+│   ├── Directional Light
+│   ├── Plane {pt}                   MeshCollider (클릭 레이캐스트 바닥)
+│   └── Capsule                      샘플룸 장식 primitive(스크립트 0) — 보존
+└── ===== UI =====
+    ├── Canvas {MessageWindow}
+    └── R-MasterCanvas {RoomHudView} 룸 HUD(PlayerList/Leave)
+```
+
+**contract §1 정본과의 studio 편차(정당):**
+- **Network 하위폴더 없음** — `NetworkManager`는 **부트 씬(QuickStart/T_Master)** 소재(Addressables 모델). 룸 씬에 Network 층 불요. RoomCore는 `InstanceFinder` 전역 접근.
+- **COMPOSITIONS 층 없음** — 컴포지션 부재 시 미생성(contract §1 "있을 때만 존재"·"수요 없는 층 금지" launchpad/D2 교훈).
+- **_DYNAMIC 없음** — 런타임 생성물(아바타 Clone, RulerMeasurement(Clone))은 play 중에만 등장(에디터 정적 씬엔 없음).
+
+**⚠ SceneId 안전 검증 결과 (신규 실측 — 조립 스킬 필수):**
+- **FishNet 씬 네트워크 오브젝트(--PLAYER_SPAWNER)를 `SYSTEMS/Player`로 재부모해도 SceneId 유지.** 이동 전/후 모두 `SceneId=4290510823`(불변) `IsSceneObject=True`. 이동 → `EditorSceneManager.SaveScene`(FishNet `sceneSaving` 훅 발화) → 재읽기로 확인 → QuickTest 아바타 스폰 **유지 PASS**.
+- **contract §1 "SceneId=0 함정"은 여기서 미발생.** 그 함정은 *한 script-execute 안 씬 생성→배치→저장*(훅이 비결정적으로 스킵)에 국한. **지속 오픈 씬에서 재부모+SaveScene은 훅이 정상 발화**해 SceneId를 보존·검증. → `CreateSceneId(force)` 폴백 **불요**(있으면 안전망). **규칙: studio에서 씬 네트워크 오브젝트 재배치는 (a)persistent 오픈 씬에서 (b)SaveScene(MCP scene-save 또는 EditorSceneManager.SaveScene)로 훅 발화 (c)SceneId!=0 && IsSceneObject 재확인 (d)QuickTest 아바타 스폰 — 4단계면 안전.**
+- 비-네트워크 오브젝트(Light/Plane/Capsule/Canvas) 재부모는 SceneId 무관, 일괄 이동 후 1회 QuickTest로 충분.
+
+**정리 판정:** 5층(SYSTEMS/FEATURES/ENVIRONMENT/UI) 완성 + §5/§6.5 전부 **여전히 PASS**(아바타 스폰·RoomCore 4서비스·ruler 자기등록·SetEnabled·측정 스폰 pos=중점+LineRenderer 전파+라벨 거리, Error 0). 작동 유지하며 구조 완성 — 타협(스폰 루트 잔류) 불필요.
+
