@@ -213,7 +213,7 @@ Unity `6000.3.11f1` / `activeInputHandler=2`(Both) / `scriptingDefineSymbols`에
 
 **§5 실행 체크리스트(사용자 구동 중, 최소 변경판):** Content Manager > Quick Test ON(Addressables Play Mode=Use Asset Database) → `QuickStart.unity` → `Starter`(QuickTestStarter): shipped 기본(`startAsServer`✅, `roomSceneKey=T_RoomB` leaf) 유지 + **`hostMode`만 0→✅로 변경**(단일 에디터 아바타 관측 필수) → Play. 신호 ①룸(T_RoomB) 로드 ②아바타 스폰 ③모션(머리/몸 카메라 추적) + 콘솔 이상(ModelLoader NRE/InvalidKey/missing script) 관측. 옵션: XR Interaction Simulator로 NetCube 잡기/던지기(M2/V1 경로).
 
-**§5 결과:** _(사용자 관측 대기 — 기록 예정)_
+**§5 결과 (2026-07-23 — 사용자 GUI 라이브 관측 PASS):** `QuickStart`→`Starter`(`startAsServer`✅ + `hostMode`✅ + `roomSceneKey=T_RoomB`)→Play. **①T_RoomB 룸 씬 로드 PASS ②아바타 스폰 PASS ③아바타 모션(머리/몸 카메라 추적) PASS.** XREAL 관련 빨간 콘솔 에러 = 무해(무시). ⚠️ **관측 주체 = 사용자(GUI 육안), MCP/에이전트 자동판정 아님** — 정직 계약상 "사용자 라이브 관측"으로 기록(에이전트 하네스 판정 아님). → **studio "환경이 산다" 증명 완료: 컴파일 레벨(§4) + 런타임 스폰·모션(§5) 양쪽.** codebook GUID 회수(§3b)가 실제로 아바타 스폰·모션까지 이어짐이 라이브로 확인됨.
 
 ### MCP 설치 실패 사후분석 (2026-07-23) — studio는 0.76.3 조합 불가
 studio에 `com.ivanmurzak.unity.mcp` 설치 시도 → 컴파일 실패 연쇄. **근본 원인 = UXM 1.8.5(@40db6de)가 신버전 MCP 전용 어댑터를 too-loose 게이트로 포함.**
