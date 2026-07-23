@@ -354,3 +354,19 @@ PromptSceneRoom_1.unity
 
 **정리 판정:** 5층(SYSTEMS/FEATURES/ENVIRONMENT/UI) 완성 + §5/§6.5 전부 **여전히 PASS**(아바타 스폰·RoomCore 4서비스·ruler 자기등록·SetEnabled·측정 스폰 pos=중점+LineRenderer 전파+라벨 거리, Error 0). 작동 유지하며 구조 완성 — 타협(스폰 루트 잔류) 불필요.
 
+### Ruler 최소 HUD — 사람 조작 UI (✅ 2026-07-23, IMGUI 채택, 사람 라이브 판정)
+
+목표 = 사람이 화면 UI로 Ruler ON/OFF + 측정 지우기. XRCollab `RulerHudUI`(HANDOFF §5c) 패턴 이식.
+
+**UI 방식 결정: IMGUI(OnGUI) — uGUI 대신 (사용자 선택, 근거 제시 후).** studio UI 실측(read-only + 런타임):
+- **기존 UI(2a):** `===== UI =====`의 `Canvas`=**WorldSpace** 메시지 보드(MessageWindow=TextMeshProUGUI, worldCam=null, 비대화형) / `R-MasterCanvas`(Transform만) → 자식 `RoomHudView`=**ScreenSpaceOverlay** Canvas+GraphicRaycaster+CanvasGroup(PlayerList/Leave 버튼 = hot-update 구동, interactable+리스너 wired).
+- **⚠ 입력 경로(2b) — 신규 실측:** 룸 씬 런타임에 **활성 EventSystem이 2개** — 아바타 `EventSystem`(**InputSystemUIInputModule**) + QuickTest 생성 `[QuickTest] EventSystem`(**StandaloneInputModule**, = `EventSystem.current`). 이것이 migration이 언급한 "2 event systems" 경고의 실체. 정적 씬엔 EventSystem 0(런타임 아바타가 공급).
+- **판정:** uGUI도 원리상 동작(기존 HUD 버튼 wired + StandaloneInputModule이 Both와 호환)하나 **2-EventSystem 혼재로 클릭 라우팅 불안정 소지 + 런타임 버튼 구성 verbose + 클릭이 사람만 판정 가능**. **IMGUI는 `Event.current` 자체 처리라 EventSystem/입력모듈 완전 무관** → 2-EventSystem 영향 0, 직렬화 지뢰 0, XRCollab 검증됨. → 마찰 최소 IMGUI 채택.
+- **SuppressWorldClick studio 적용:** `RulerHudUI.Update`가 매 프레임 `SimpleClickProvider.SetWorldClickSuppressed(this, 패널Rect.Contains(마우스))` — 커서가 패널 위면 클레임(클레임 기반, M3 동형). `Input.mousePosition`(하좌 원점) → GUI Rect(상좌 원점) **Y 뒤집기** 필수. 레거시 `Input`(Active Input=Both)로 studio에서 동작. OnDisable에서 클레임 해제.
+
+**산출물:** `Assets/App/Scripts/ContentLogic/PromptScene/Content/Ruler/RulerHudUI.cs`(hot, 계약만 의존, 직렬 필드 0) + 씬 `===== UI =====/RulerHudUI` GameObject(3b 안전 — 직렬 필드 없음).
+
+**검증 (§4, 사람 라이브 판정 PASS):** QuickTest(host, PromptSceneRoom_1) 진입 → 좌상단 IMGUI 패널 렌더(`_registry` 바인딩 확인) → **사용자가 화면에서 직접**: 룰러 ON/OFF 토글 / 바닥 2점 클릭→측정선+라벨 / 지우기→소멸 / HUD 버튼 클릭이 바닥 측정으로 안 샘(SuppressWorldClick) / 기존 UI(월드 메시지·PlayerList/Leave) 무손상 — **전부 "잘됨" 확인.** 에이전트 뒷받침: **예외/에러 0**(6분 구간), 기존 HUD 버튼 활성 유지, 측정 카운트가 지우기 반영. ⚠ 관측 주체 = 사용자 GUI(§5 베이스라인과 동형의 정직 표기).
+
+**정직:** 증명 = **단일 에디터 host에서 사람이 UI로 Ruler 조작**(토글·측정·지우기·클릭 억제). 밖 = 2클라 UI 동기, VR 입력(가상 키보드), Phase 3 런치패드(아이콘 그리드) — **이건 "최소 HUD"지 런치패드 아님.**
+
