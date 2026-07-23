@@ -59,6 +59,7 @@
 - `[Serializable]` 데이터 컨테이너(List<Foo>) → **App.Bridges(baked)**, hot 두면 미스매치.
 - NetworkBehaviour(FishNet RPC) = 검증됨. → **승인 패턴: 프리팹=기본 컴포넌트(NetworkObject/XR Grab/Rigidbody), hot 뷰 직렬 필드=씬 임베드 or 런타임 코드 배선.**
 - **적용 실증(Ruler):** `RulerMeasurement.prefab`=NetworkObject+RulerMeasurementView(뷰의 LineRenderer/TextMesh는 런타임 `BuildOrUpdate`에서 생성, lineWidth/lineColor는 코드 기본값) → Prefab-로더 미채움 지뢰에 안전. `RulerContent.measurementPrefab`(씬 MonoBehaviour의 GameObject 필드)은 **씬 임베드 배선**(scene 로더가 채움).
+- **⭐ XRI 절 (base 어셈블리 컴포넌트 = 프리팹 직렬화 OK — GrabbableProps 실증, migration §11.3):** XR Grab Interactable·Rigidbody 등 **XRI/물리 컴포넌트는 base(패키지, immutable) 어셈블리**라 **프리팹에 직접 박고 인스펙터로 설정해도 필드값이 보존된다**(NetCube 선례 + `GrabbableProp.prefab` 디스크·스폰 인스턴스 양쪽 실측: `m_ThrowOnDetach`/`ownershipMode`/client-auth 플래그 전부 유지). 즉 **XRI FEATURE 프리팹 = base 컴포넌트(XR Grab Interactable/Rigidbody/NetworkObject/XumView/NetworkTransform) 직접 직렬화 + hot 뷰는 직렬 필드 0(런타임 배선)**. hot 뷰(GrabbableView)는 XRI 이벤트만 배선(`selectEntered.AddListener` in `OnStartClient`) → ChatChannelView와 동형(직렬 필드 0 = Prefab-로더 미채움 지뢰 무관). **함정:** FishNet 스폰 콜백(`OnStartClient`)은 스폰 **다음 틱**에 발화 → AddListener도 한 틱 지연(스폰 당프레임엔 미배선; MCP 검증은 한 틱 뒤 확인).
 
 ## 3c. 네트워크 프리팹 등록 (신 C1)
 

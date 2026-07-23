@@ -1,6 +1,6 @@
 # XumFlow 이식 — 메커니즘 · 대조표 · 미결 타깃 결정
 
-> **최신 상태(2026-07-23):** ✅ **첫 관통 성공 — RoomCore + Ruler를 studio 샘플룸(T_RoomB 복제) 위에 얹어 §5/§6.5 MCP 라이브 판정 PASS. → §9.** (아래 §1~§5는 studio 확보 전 소스분석 기록, §7~§8은 환경/MCP/port-prep 확정. §9가 최신.)
+> **최신 상태(2026-07-23):** ✅ **첫 관통(§9 RoomCore+Ruler) → Chat 이식(§10) → GrabbableProps XRI 그랩 이식(§11).** studio 샘플룸(PromptSceneRoom_1) 위 FEATURES = **Ruler·Chat·GrabbableProps 3종 공존**, 전부 §5 단일 host MCP 라이브 PASS. **§11에서 XRI 3b 경계 규칙 확정(base=프리팹OK / hot=런타임)** = 이후 모든 XRI FEATURE의 SSOT. 2인 검증(Chat 양방향 + Grab 핸드오버)은 MPPM 대기(§11.6). (아래 §1~§5는 studio 확보 전 소스분석, §7~§8은 환경/MCP/port-prep, §9~§11이 이식 실측.)
 >
 > **상태(2026-07-22):** §2 메커니즘 + §3 대조표 = **소스 확정 완료(read-only)**.
 > §4(이식)·§5(라이브 검증) = 당시 **하드 스톱**(studio 부재 + MCP 미가동) → §7 이후 해소, §9에서 관통 완료.
@@ -421,4 +421,67 @@ QuickStart→QuickTestStarter(startAsServer✅+hostMode✅+roomSceneKey=PromptSc
 ⚠️ **XRCollab 트랩 J/K(멀티 게스트 동시조인 flakiness / 콜드스타트 토큰 만료)는 MST 스택 소산** — studio는 QuickTest가 **MST 우회 FishNet 직결**이라 두 트랩이 **구조적으로 없을 개연**(재검증은 2인 성립 후). 이 절이 `/multiplayer-check` 스킬 SSOT의 studio 편 씨앗.
 
 **정직 계약(이 세션 증명 범위):** Chat 이식 + §5 단일 클라(자기등록·Meta·토글·1채널 재사용·host 루프백 RPC)까지 studio 라이브 PASS. **밖(미실증):** 2클라 양방향(별도 프로세스 부재), 실제 키보드 입력 이벤트, 백필, 3인+, VR 가상 키보드, 크로스플랫폼 실기기.
+
+---
+
+## 11. GrabbableProps FEATURE 이식 (XRI 그랩) + ⭐ XRI 3b 경계 규칙 (2026-07-23)
+
+> 목표: XRCollab GrabbableProps(M2, **클릭 기반** 그랩)를 studio에 이식하되 studio 표준 **XRI(XR Grab Interactable)** 위에 얹음. §5 + 로컬/host 검증(2인 필요분=MPPM 명시 보류). 판정 주체 = 에이전트 MCP.
+> **결과: 그랩 컴포넌트 루프 + XRI 배선 + 소유권 로컬 경로 = ✅ 단일 host PASS. 2클라 핸드오버 전파 = ⛔ MPPM 대기(§11.6, 명시 보류).**
+
+### 11.1 XRCollab과의 결정적 차이 = 그랩을 XRI 위에 얹음
+XRCollab M2의 그랩은 **데스크톱 클릭**(GrabbableProps.OnClick + GrabbableView.Update 마우스 드래그)이었다. studio 표준은 XRI(NetCube 선례) → 그랩을 **XR Grab Interactable** 위에 얹음:
+- **프리팹이 XR Grab Interactable을 직렬 보유** → XR 인터랙터(컨트롤러/Near-Far/에디터 XR Interaction Simulator)가 콜라이더를 select→이동→놓기(throwOnDetach velocity). **물리·이동은 전부 XRI+Rigidbody**가 담당.
+- **GrabbableView(hot)의 유일한 일 = 네트워크 배선**: `XRGrabInteractable.selectEntered` → `XumView.RequestOwnership()`(Takeover). XRCollab의 체인(selectEntered→AssemblySnapPart→GestureHandler→RequestOwnership, grab-ownership-survey §Q1)을 **이 한 홉으로 축약**. 이동 코드 없음(클릭 모델의 것 — XRI가 대체).
+- **FEATURE(GrabbableProps.cs)는 오히려 더 단순** — 클릭 안 쓰므로 **IInteraction 의존 0**, 순수 spawn/despawn 매니저(ChatContent 형). PromptScene.Core만 참조.
+
+### 11.2 산출물 (studio `Assets/App/`)
+- **소스:** `Scripts/ContentLogic/PromptScene/Content/GrabbableProps/{GrabbableProps,GrabbableView}.cs` (App.HotUpdate 内, CS 에러 0, 두 타입 로드 확인). asmdef가 이미 `Unity.XR.Interaction.Toolkit` 참조 → 접근 OK. **XRI 타입 위치(oxr-source-scout 실측, XRI 3.3.1):** `XRGrabInteractable`=`UnityEngine.XR.Interaction.Toolkit.Interactables`(3.x에서 이동), `SelectEnterEventArgs`=**root** `UnityEngine.XR.Interaction.Toolkit`, `selectEntered`=`SelectEnterEvent : UnityEvent<SelectEnterEventArgs>`(base XRBaseInteractable), 전부 단일 asmdef `Unity.XR.Interaction.Toolkit`. → GrabbableView는 `using ...Toolkit;` + `using ...Toolkit.Interactables;` 둘 다 필요.
+- **프리팹:** `Prefabs/GrabbableProp.prefab` = Cube(Mesh/BoxCollider) + Rigidbody + NetworkObject + XumView(ownershipMode=1 Takeover) + NetworkTransform(client-auth: `_clientAuthoritative`/`_sendToOwner`/`_synchronizePosition`/`_synchronizeRotation`=1, `_interval`=1) + XRGrabInteractable(m_ThrowOnDetach=1) + GrabbableView. **NetCube 위에 XumView+NetworkTransform를 추가한 형**(NetCube는 그랩+물리만 — XumView/NetworkTransform 없음 = 소유권·위치동기 없는 스폰 데모). 스크립트 GUID는 패키지 안정(XumView `b60552…`·NetworkTransform `a28363…`·XRGrabInteractable `0ad34a…`=NetCube와 동일).
+- **신 C1:** `GenerateFull(null,false,true)`(리플렉션) → `DefaultPrefabObjects` **8→9**(GrabbableProp 편입) + Addressables 개별 엔트리 `Network/Prefabs/GrabbableProp`(그룹 `Default Prefab Objects`, 라벨 [] — RulerMeasurement/ChatChannel과 대칭 **수동** 추가; GenerateFull은 개별 엔트리 자동생성 안 함 = Chat 실측 재확인).
+- **배치:** `PromptSceneRoom_1` `===== FEATURES =====/GrabbableProps`(Ruler·Chat과 형제) + grabbablePrefab **씬 임베드 배선**(3b). 기존 네트워크 씬 오브젝트(--PLAYER_SPAWNER) 무재배치 → SceneId churn 회피.
+
+### 11.3 ⭐ XRI 3b 경계 규칙 (이후 모든 XRI FEATURE의 SSOT)
+이번의 핵심 발견 지점(지시 §2a). **프리팹 직렬화 안전 경계를 XRI에 대해 확정:**
+
+| 구성요소 | 어셈블리 | 프리팹 직렬화 | 근거(실측) |
+|---|---|---|---|
+| XR Grab Interactable, Rigidbody, NetworkObject, XumView, NetworkTransform | **base(패키지, immutable)** | ✅ **프리팹에 직접 박아도 필드값 보존** | 디스크 재읽기: `m_ThrowOnDetach:1`/`m_MovementType`/`ownershipMode:1`/client-auth 플래그 전부 기록됨. **스폰 인스턴스에도 전부 존재**. NetCube 선례와 동형 |
+| GrabbableView (hot, App.HotUpdate) | **hot-update DLL** | ⚠️ 직렬 필드는 Prefab-자산 로더가 안 채움 → **직렬 필드 0으로 회피**(런타임 GetComponent+AddListener) | ChatChannelView와 동형. `_wired`/`_xum`/`_grab` 전부 런타임 배선 |
+
+**규칙 확정:**
+1. **base 어셈블리(Unity/패키지) 컴포넌트 = 프리팹에 직접 직렬화 OK.** XRI FEATURE 프리팹은 XR Grab Interactable·Rigidbody 등 XRI/물리 컴포넌트를 프리팹에 직접 박고 인스펙터로 설정해도 안전(NetCube 선례 + 이번 디스크·스폰 양쪽 실측).
+2. **hot 컴포넌트 = 직렬 필드 0으로 유지**(런타임 배선). 필드가 꼭 필요하면 **씬 임베드**(FEATURE 루트처럼). GrabbableView는 필드 0 → 프리팹 안전.
+3. FEATURE 루트(GrabbableProps)의 `grabbablePrefab` 같은 hot 직렬 필드 = **씬 임베드**(scene 로더가 채움; Ruler measurementPrefab/Chat channelPrefab 동일).
+
+→ [build-studio-room.md](build-studio-room.md) §3b에 XRI 절 추가(이 세션에서 반영).
+
+### 11.4 §5 + 로컬/host 검증 (MCP 자동판정, host, PromptSceneRoom_1)
+| 신호 | 결과 |
+|---|---|
+| SYSTEMS 무손상 | `Desktop(Clone)` 아바타 스폰 유지 |
+| grabbable-props 자기등록 | `Contents.All=[chat,ruler,grabbable-props]` (**3기능 공존**) |
+| Meta 유효 | DisplayName='잡기 소품', Category='물체', DefaultOn=False |
+| SetEnabled 무예외 + 멱등 | true→spawn(clones=1), false→despawn(clones=0), true/false/true 사이클 무예외, **spawn-once(정확히 1개)** |
+| 프리팹 네트워크 스폰 | `GrabbableProp(Clone)` `IsSpawned=True`, 컴포넌트 전부(Rigidbody/NetworkObject/XumView/NetworkTransform/**XRGrabInteractable**/GrabbableView) — **런타임 3b 확인** |
+| XRI select 배선 라이브 | `GrabbableView._wired=True`(**한 틱 뒤** — OnStartClient→AddListener; 스폰 당프레임엔 False=콜백 지연, §11.4 함정) |
+| 소유권 로컬 발화 | OnSelectEntered → 로그 `[grabbable-props] grab: XRI select → XumView.RequestOwnership() (Takeover)`, 예외 0. host는 spawn이 server-owned(IsMine=False)라 **실제 RequestOwnership 분기 실행**(스킵 아님) |
+| 3기능 공존 | ruler·chat·grab 동시 enable 무예외 |
+| 콘솔 | **Error 0 / Exception 0** (필터 null) |
+
+**함정(신규, 역기입):** FishNet 스폰 콜백(`OnStartClient`)은 **스폰 당프레임이 아니라 다음 틱**에 발화 → `selectEntered.AddListener`(GrabbableView.Wire)도 한 틱 지연. 스폰 직후 같은 프레임에 `_wired` 읽으면 False(오진 유발). 실사용엔 무해(사람이 잡기 전 이미 배선). **MCP 검증 시 스폰 후 한 틱 지나고 배선 상태를 읽을 것.**
+
+### 11.5 정직 계약 (증명 범위)
+- **증명됨(단일 에디터 host, MCP 자동판정):** GrabbableProps 자기등록·Meta·SetEnabled 멱등·네트워크 스폰(IsSpawned)·XRGrabInteractable 프리팹/스폰 보존(3b)·XRI selectEntered→RequestOwnership 배선 라이브+예외 0·3기능 공존. Error/Exception 0.
+- **밖(미실증):**
+  - **XR Interaction Simulator 실조작 그랩→이동→던지기 물리** = 이 세션 **미수행**(비대화형 세션이라 사람 GUI 시뮬레이터 조작 불가). NetCube 선례로 컨트롤러 그랩 자체는 성립 실증됨(build-studio-room §6). **에이전트 자동판정은 `selectEntered` 이벤트 주입 경계까지** — 실제 인터랙터 레이→select 원경로는 D2/M4/§5와 동일 경계.
+  - **2클라 핸드오버 전파**(Owner A→B→A) = MPPM 미설치로 **명시 보류**(§11.6).
+  - 실기기 VR 그랩(V2), 경합 뺏기(예측=등급2), 던지기 velocity의 네트워크 전파.
+  - **다트 확장(지시 §5)** = 미착수. 그랩 루프는 PASS했으나 다트의 검증 가치(비행 전파·명중→점수)는 2인+COMPOSITION이라 이 세션 자동판정 범위 밖 → 다음 단계(욕심 안 냄).
+
+### 11.6 2인 대기 큐 (MPPM 결정 대기) — 갱신
+studio 2번째 프로세스 수단 부재(§10.3 — MPPM/ParrelSync 미설치, 경량 스탠드얼론 빌드 없음)로 아래 2인 검증을 **일괄 보류**. MPPM(권장, §10.3-A) 갖춰지면 함께 집행:
+1. **Chat 양방향**(§10.3): A↔B 송수신 파리티.
+2. **Grab 핸드오버**(XRCollab M2 5신호 대응 — 정의만 확정): ①A잡기→Owner=A 양측 ②A놓기→위치전파+Owner 유지(비반납 Takeover) ③B탈취→Owner=B(A도 확인) ④B놓기→A가 위치 관측 ⑤A재탈취→Owner=A. 위치 전파 = client-auth NetworkTransform(새 오너 authority 자동 승계, grab-ownership-survey §Q3).
+3. (후속) 다트 비행 동기·명중→점수(2인+COMPOSITION).
 
