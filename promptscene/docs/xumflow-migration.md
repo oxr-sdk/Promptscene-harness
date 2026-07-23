@@ -379,3 +379,46 @@ IMGUI(데스크톱 전용)를 **크로스플랫폼 World Space uGUI**로 교체(
 - **패키지 정정(§3a 보강):** `com.unity.xr.hands`·`com.unity.xr.openxr`·`xr.management`·`xr.core-utils`가 **PackageCache에 전이 의존으로 존재**(manifest 명시 핀은 xr.interaction.toolkit 3.3.1+inputsystem뿐). §3a "openxr/xr.hands 없음"은 *manifest 명시 핀 기준* — 전이 resolve로는 존재하나 **XR 로더 미활성**이라 감지=desktop.
 - **신규 문서:** [build-studio-room.md](build-studio-room.md) — studio 룸 조립·검증 재사용 절차(겪은 것만). ⚠ 배포(Smart Deploy)는 미경험이라 미포함(`build-studio-deploy.md` 후속).
 
+---
+
+## 10. Chat FEATURE 이식 + studio 2인 토폴로지 정찰 (2026-07-23)
+
+> 목표: XRCollab `ChatContent`(HANDOFF §5c/M3)를 studio에 이식(§2~§3) + studio 첫 2클라 양방향 검증(단계 9).
+> **결과: Chat 이식 + §5 단일 클라 = ✅ PASS. 2인 검증 = ⛔ 인프라 블록(2번째 프로세스 수단 부재) — 아래 §10.3, 사용자 결정 대기.**
+
+### 10.1 Chat 이식 — verbatim 포트 (Ruler 선례와 동일, API 차이 0)
+studio Core 4서비스가 XRCollab과 시그니처 동일(§9 §2 실측 재확인: `INetSpawn.Spawn(prefab,pos,rot)`, `[ServerRpc(RequireOwnership=false)]`+`NetworkConnection sender=null` 서버주입, `[ObserversRpc]`, `SimpleClickProvider.SetWorldClickSuppressed`, `RoomCore.Instance`·`Contents.Register/NotifyToggled`, `INetDespawnRequest`). → **XRCollab ChatContent.cs·ChatChannelView.cs를 무개조 이식**(Ruler처럼 verbatim). 산출물(studio `Assets/App/`):
+- **소스:** `Scripts/ContentLogic/PromptScene/Content/Chat/{ChatContent,ChatChannelView}.cs` (`App.HotUpdate` 어셈블리 内 — 컴파일 확인: 두 타입 모두 `App.HotUpdate`에 로드, CS 에러 0).
+- **프리팹:** `Prefabs/ChatChannel.prefab` = **Transform + NetworkObject + ChatChannelView** (기본 컴포넌트만 — 3b: ChatChannelView는 직렬 필드 0, static Log만 → Prefab-로더 미채움 지뢰 무관).
+- **신 C1 등록:** `FishNet.Editing.PrefabCollectionGenerator.Generator.GenerateFull(null,false,true)`(리플렉션) → `Assets/DefaultPrefabObjects.asset` 6→**8**(RulerMeasurement + ChatChannel 편입) + Addressables `Network/DefaultPrefabObjects`(런타임 스왑 소스, ChatChannel 포함). ⚠️ **GenerateFull은 개별 프리팹 Addressables 엔트리를 자동 생성 안 함**(Ruler는 있었으나 Chat은 누락) → `Network/Prefabs/ChatChannel` 엔트리를 `Default Prefab Objects` 그룹에 **수동 추가**(RulerMeasurement와 대칭 — 원격 배포 C1 완비). QuickTest 스폰엔 무영향(FishNet은 컬렉션 자산의 직접 참조로 스폰).
+- **배치:** `PromptSceneRoom_1` `===== FEATURES =====/Chat`(Ruler와 형제) + `channelPrefab` **씬 임베드 배선**(3b: 씬 로더가 hot MonoBehaviour SerializedField 채움). 기존 네트워크 씬 오브젝트(--PLAYER_SPAWNER) 무재배치 → SceneId churn 회피.
+
+### 10.2 §5 단일 클라 QuickTest — ✅ PASS (MCP 자동판정, host, PromptSceneRoom_1)
+QuickStart→QuickTestStarter(startAsServer✅+hostMode✅+roomSceneKey=PromptSceneRoom_1)→Play:
+
+| 신호 | 결과 |
+|---|---|
+| SYSTEMS 무손상 | 아바타 `Desktop(Clone)` 스폰 유지(Chat 얹은 뒤에도) |
+| chat 자기등록 | `RoomCore.Contents.All=[chat,ruler]`, Meta(DisplayName=`채팅`, Category=`소통`, DefaultOn=False) 유효 |
+| SetEnabled 무예외 | true→false→true(재-인에이블) 전부 예외 0, IsEnabled 정합 |
+| 채널 spawn-or-reuse=1 | IsClientStarted=True 게이트 후 스폰 → **채널 정확히 1개**(IsSpawned=True). 토글 사이클(재인에이블/비활성/재사용) 내내 **1개 유지**(2채널 안 됨 — M3 설계지점 성립) |
+| RPC 배선 스모크(보너스) | host 루프백 2건 발신 → `ChatChannelView.Log.Count=2`, 발신자=**서버주입 P0**(위조 아님), **순서 보존**(`P0:hello from host`→`P0:second line`). 상행 ServerRpc→하행 ObserversRpc 전 경로 성립 |
+
+콘솔 Error 0 / Exception = XREAL `DllNotFoundException` 1건뿐(§5 기록의 무해 항목, 우리 코드 무관). **= Chat 컴포넌트 단일 클라 루프 PASS.** 판정 주체 = 에이전트 MCP.
+
+### 10.3 ⛔ studio 2인 토폴로지 — 인프라 블록 (정찰 결과, 사용자 결정 대기)
+**QuickTest 모델(소스 실측 `Tools/QuickTestStarter.cs`):** MST 아님 — **FishNet 직접 연결** `localhost:7770`(양쪽 동일 포트). 서버=`startAsServer✅`(+hostMode✅면 서버+로컬 host클라), 클라=`startAsServer❌`→Play(FishNet 씬 자동 동기화). 즉 **2클라 = host 에디터 A(P0) + 별도 프로세스 B(P1) 1개**면 성립.
+
+**막힌 지점 = "별도 프로세스 B"를 만들 수단이 studio에 아직 없음:**
+- **ParrelSync 없음**(glob 0). **Unity 6 Multiplayer Play Mode(MPPM, `com.unity.multiplayer.playmode`) 미설치**(manifest·PackageCache 0) — MPPM이면 같은 에디터에서 가상 플레이어(2번째 클라)로 클론·빌드 없이 가능(현대 정석).
+- **경량 스탠드얼론 빌드 경로 없음** — `Assets/App/Editor/PlatformSwitch/BuildUtility.cs`는 프리셋/경로 헬퍼뿐(디바이스 프리셋 빌드=Smart-Deploy용). 룸은 Addressables `Use Asset Database`(에디터 전용) 로드라 **플레이어 빌드는 실 번들(Addressables content build) 필요 → build-studio-room §7의 "미경험 배포 파이프라인" 영역.**
+
+**→ 2인 검증 착수 전 3갈래 결정(사용자):**
+- **A. MPPM 추가**(권장) — 같은 에디터 가상 플레이어. 최경량, 클론·빌드 불요, 정확히 이 용도. 비용: manifest에 registry 패키지 추가(가드가 에이전트 manifest 편집 차단 → 사용자가 추가) + resolve + FishNet 직접연결과의 궁합 첫 실증(미확인 리스크 소).
+- **B. 프로젝트 클론**(ParrelSync식) — 폴더 복사 → 2번째 에디터. 콜드 임포트 무거움(첫 오픈급) + 디스크 + 편집 동기화 부담.
+- **C. 풀 Smart-Deploy 빌드** — 런타임 client.exe 산출. 최대 규모, **명시적 미경험**(다중 세션 개연). 2인 검증 목적엔 과함.
+
+⚠️ **XRCollab 트랩 J/K(멀티 게스트 동시조인 flakiness / 콜드스타트 토큰 만료)는 MST 스택 소산** — studio는 QuickTest가 **MST 우회 FishNet 직결**이라 두 트랩이 **구조적으로 없을 개연**(재검증은 2인 성립 후). 이 절이 `/multiplayer-check` 스킬 SSOT의 studio 편 씨앗.
+
+**정직 계약(이 세션 증명 범위):** Chat 이식 + §5 단일 클라(자기등록·Meta·토글·1채널 재사용·host 루프백 RPC)까지 studio 라이브 PASS. **밖(미실증):** 2클라 양방향(별도 프로세스 부재), 실제 키보드 입력 이벤트, 백필, 3인+, VR 가상 키보드, 크로스플랫폼 실기기.
+

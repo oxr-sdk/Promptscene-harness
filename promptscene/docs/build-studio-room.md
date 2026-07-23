@@ -120,4 +120,4 @@ FEATURE를 데스크톱/Meta/XREAL/(태블릿/Vision) 어디서나 **포인팅**
   - poke로 바닥 측정(현재 near-far 레이만).
   - 번들 한글 폰트(현재 OS 동적 폰트 = 데스크톱만).
   - **배포(Smart Deploy / Build & Package / Bundle Uploader) 전체 = 미경험 → `build-studio-deploy.md` 후속.**
-  - 2인(QuickTest 에디터 2개) / 2클라 파리티 = studio 미경험(다음 단계).
+  - 2인(QuickTest 에디터 2개) / 2클라 파리티 = studio 미경험(다음 단계). **토폴로지 정찰(xumflow-migration §10.3):** QuickTest = MST 아닌 **FishNet 직접연결 `localhost:7770`**(서버=startAsServer✅, 클라=startAsServer❌). 2클라 = host 에디터 A + 별도 프로세스 B 1개면 성립하나 **B 생성 수단 부재**(ParrelSync·MPPM 미설치, 경량 스탠드얼론 빌드 없음 → Smart-Deploy 미경험). 착수 전 MPPM 추가 vs 클론 vs 빌드 결정 필요.
