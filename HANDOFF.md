@@ -19,6 +19,8 @@
 자동 검증한다.** 산출물은 두 갈래다: ① Unity 런타임 코드(얇은 코어 + 옵트인 콘텐츠 모듈), ② 그걸 조립·검증하는
 Claude Code 플러그인(이 레포 = `promptscene-harness`).
 
+> **신규 병행 트랙(2026-07):** 위 ①런타임 코드를 **XumFlow studio**(별도 콘텐츠 저작 프로젝트 — hot-update/Addressables 모델로 XRCollabDemo와 상이)로 이식 착수. Core/Content는 `App.HotUpdate`(`ContentLogic/PromptScene/`)에 들어감. 지형 §2 · 현황 §4 · 다음 §8 · 상세 SSOT [promptscene/docs/xumflow-migration.md](promptscene/docs/xumflow-migration.md).
+
 ## 2. 레포·프로젝트 지형 (헷갈리기 쉬움)
 
 | 것 | 위치 | 정체 | 비고 |
@@ -30,7 +32,7 @@ Claude Code 플러그인(이 레포 = `promptscene-harness`).
 | **XumFlow (studio)** | `c:\J_0\XumFlow-studio` | 포트 **타깃** 후보(콘텐츠 저작 프로젝트), studio 브랜치 `@7ccd554`, Unity `6000.3.11f1`, MCP `ai-game-developer`@**21017** | gitignore `/XumFlow-studio/`. 환경 살아있음 실증(오픈·컴파일·§5 스폰). SSOT: [promptscene/docs/xumflow-migration.md](promptscene/docs/xumflow-migration.md) §7 |
 | **XumFlow (runtime)** | `c:\J_0\XumFlow` | 다운로더/플레이어 빌드(runtime 브랜치 `@200a4a2`) | 대조·인용용 보존. gitignore `/XumFlow/` |
 
-> **XumFlow studio 트랙 상태(2026-07-23):** studio 클론 + 선행조건(codebook/XREAL 회수) + 에디터 오픈·컴파일 클린 + **§5 베이스라인 스폰 PASS(T_RoomB, 사용자 GUI)** + 우리 코드 자리 확정(`ContentLogic/App.HotUpdate.asmdef` = baked 경계) + **MCP 0.66.0 배선(Connected)**. 세션 재시작 후 MCP로 studio 구동 예정. **핵심 규칙/함정(SSOT=xumflow-migration.md §7):** ①MCP 버전 ∝ 프로젝트 UXM 버전(studio UXM 1.8.5→MCP 0.66.0 / XRCollab UXM 1.8.1→0.76.3, 서버·포트 분리) ②MCP NuGet DLL은 UPM 비관리 → 버전 변경 시 클린 재설치(폴더 삭제 후 0.66.0 자동복원, 다운로드 중 과도기 CS 에러=행 아님) ③씬 로드 키=leaf 폴백 가능·`hostMode=true`라야 단일 에디터 아바타 스폰 ④XRCollab UXM URL 언핀 = 잠재 취약(재resolve 시 어댑터-MCP 충돌 재발). 길 A(구버전 MCP, UXM 무수정) 채택 — UXM 담당자에 versionDefine 완화 요청됨, 상류 수정 오면 최신 MCP 이전 재검토.
+> **XumFlow studio 트랙 상태(2026-07-23):** studio 클론 + 선행조건(codebook/XREAL 회수) + 에디터 오픈·컴파일 클린 + **§5 베이스라인 스폰 PASS(T_RoomB, 사용자 GUI)** + 우리 코드 자리 확정(`ContentLogic/App.HotUpdate.asmdef` = baked 경계) + **MCP 0.66.0 배선(Connected)**. **MCP 0.66.0 제어 증명 완료(2026-07-23 재시작 후 세션):** §5를 MCP로 재현 — `script-execute`로 play mode 진입→T_RoomB 로드→`Desktop(Clone)` 스폰+모션rig→exit. + **port-prep 3결정 확정**(Core=`ContentLogic/PromptScene`·별도 asmdef 불요 / 직렬화 지뢰 회피=프리팹 기본컴포넌트+씬임베드·런타임배선·데이터컨테이너 App.Bridges / 스킬 Smart-Deploy 재작성 스코프). **다음=Ruler 클린 재저작.** **핵심 규칙/함정(SSOT=xumflow-migration.md §7):** ①MCP 버전 ∝ 프로젝트 UXM 버전(studio UXM 1.8.5→MCP 0.66.0 / XRCollab UXM 1.8.1→0.76.3, 서버·포트 분리) ②MCP NuGet DLL은 UPM 비관리 → 버전 변경 시 클린 재설치(폴더 삭제 후 0.66.0 자동복원, 다운로드 중 과도기 CS 에러=행 아님) ③씬 로드 키=leaf 폴백 가능·`hostMode=true`라야 단일 에디터 아바타 스폰 ④XRCollab UXM URL 언핀 = 잠재 취약(재resolve 시 어댑터-MCP 충돌 재발). 길 A(구버전 MCP, UXM 무수정) 채택 — UXM 담당자에 versionDefine 완화 요청됨, 상류 수정 오면 최신 MCP 이전 재검토.
 
 - **런타임 코드 루트:** `XRCollabDemo\Assets\PromptScene\` — `Core\`(namespace `PromptScene.Core`: Contracts / RoomContentRegistry / SimpleClickProvider / RoomCore) + `Content\`(FEATURE 모듈: `Ruler\RulerContent.cs`, `ClickSpawner\ClickSpawnerContent.cs`).
 - **규격 SSOT:** [promptscene/docs/promptscene-content-contract.md](promptscene/docs/promptscene-content-contract.md) — 계약 인터페이스·씬 계층·불변식 C1~C4·검증 하네스·로드맵.
@@ -57,6 +59,7 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 | D2 | COMPOSITIONS 층(게임모드) — 이벤트 버스 + 파일럿 FEATURE 2종 + 첫 COMPOSITION | ✅ **라이브 검증(2026-07-21)**: `IEventBus` 추가(IRoomCore 무변경) / TargetProps·ScoreHud(상호참조 0) / TargetShootoutMatch+MatchView. `ShootoutRoom_1`에서 단일 클라 서버권위 루프(집계→승자→리셋) + **2클라 점수 동기 파리티** + 버스 스모크 전부 PASS(§5). 예측 견적 [prediction-survey.md](promptscene/docs/prediction-survey.md) |
 
 | V1 | 던지기(다트) — 비경합 투사체(오너 유지 비행·NT 전파·명중→서버권위 점수), 던지기=재조합 | ✅ **라이브 검증(2026-07-22)**: `ShootoutRoom_1`에서 2클라 데스크톱 — A 3/3 명중, B가 비행·오너·점수 동기 관측. 마젠타 교정 + 셰이더 검사. XR 입력경로는 소스검증(라이브 XR/실기기 = V2). [capability-map.md](promptscene/docs/capability-map.md), build-desktop-client §13 |
+| XumFlow studio 이식 | studio(콘텐츠 저작 프로젝트)로 런타임 코드 포트 — 환경 확보 + MCP + 이식 자리 확정 | 🔄 **진행(2026-07-23)**: 클론·선행조건(codebook/XREAL)·오픈·컴파일 클린 + **§5 스폰 PASS(T_RoomB)** + **MCP 0.66.0 제어 증명(§5를 MCP로 재현)** + port-prep 3결정 확정. **다음=Ruler 클린 재저작.** SSOT [xumflow-migration.md](promptscene/docs/xumflow-migration.md) §7·§8 |
 
 **스킬 4종(현재 동작):**
 - `/promptscene:assemble-room <RoomName>` — ROOM 조립 + C1~C4 + 서버 재빌드/조인 + §6.5 런타임 신호 라이브 증명.
@@ -178,6 +181,7 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 > **설계 방향 기록:** 2026-07 아키텍처 토론의 결정 사항(사거리 재정의, COMPOSITIONS 층, 에셋 전략 등)은 [design-directions-2026-07.md](promptscene/docs/design-directions-2026-07.md)에 정리됨.
 
 **바로 이어서:**
+0x. 🔄 **XumFlow studio 마이그레이션 트랙(2026-07-23 착수).** studio 환경 확보 + MCP 0.66.0 제어 증명(§5 MCP 재현) + port-prep 3결정 확정 완료(§2·§4). **다음 = 첫 기능(아마 Ruler) `Assets/App/Scripts/ContentLogic/PromptScene/`에 클린 재저작 → Content Manager 등록(Scenes Scan/Apply + Network Prefabs Apply&Generate) → Quick Test(hostMode, MCP 구동)로 §5/§6.5 검증.** 스킬(assemble/compose) EXECUTE/VERIFY의 Smart-Deploy 재작성은 각 스킬 정독 후 별도 단계. SSOT [xumflow-migration.md](promptscene/docs/xumflow-migration.md) §7·§8.
 0v. ✅ **완료 — V1 던지기(다트) 라이브 실증(2026-07-22, §5).** 2클라 데스크톱에서 비행 전파·오너 유지·명중→점수 동기 PASS. 던지기=재조합(D4-2 불요), capability-map 첫 조각 작성. **다음 = V2 실기기 던지기**: Quest 3 충전+adb 페어링 → `/deploy-client Meta`([build-meta-client.md](promptscene/docs/build-meta-client.md)) → V1b에서 넘어온 재검증(XR 시뮬/실기기 스윙→throwOnDetach velocity 계승, non-kinematic 수정 확인). 손맛·크로스플랫폼·경합 뺏기(D4-2)는 V2 몫, 판정자=사용자. 준비물 SSOT: build-desktop-client §13 "V2 준비물".
 0. ✅ **완료 — D2 COMPOSITIONS 라이브 실증(2026-07-21, §5a·§12).** 프리팹 2종 C1 등록 → `ShootoutRoom_1` 조립 → Room.exe 재빌드 → **단일 클라 서버권위 루프 + 2클라 점수 동기 파리티 + 버스 런타임** 전부 라이브 PASS. 절차 SSOT는 [build-desktop-client.md](promptscene/docs/build-desktop-client.md) §12. **남은 후속(선택):** 실제 마우스-클릭 레이캐스트 경로 실증(현재 주입은 버스 경계 TargetHitEvent), Target 머티리얼 URP 셰이더 교정(현재 마젠타 — 기능 무관), 3인+·B도 득점하는 대칭 매치, compose-room의 COMPOSITION 편입(아래 §8-3).
 1. ✅ **완료** — Phase 5 `/compose-room` 관통(§5e). 스킬 신설 커밋과 검증·문서 갱신 커밋을 분리해 기록.
