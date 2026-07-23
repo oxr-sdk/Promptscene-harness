@@ -1,7 +1,9 @@
 # XumFlow 이식 — 메커니즘 · 대조표 · 미결 타깃 결정
 
+> **최신 상태(2026-07-23):** ✅ **첫 관통 성공 — RoomCore + Ruler를 studio 샘플룸(T_RoomB 복제) 위에 얹어 §5/§6.5 MCP 라이브 판정 PASS. → §9.** (아래 §1~§5는 studio 확보 전 소스분석 기록, §7~§8은 환경/MCP/port-prep 확정. §9가 최신.)
+>
 > **상태(2026-07-22):** §2 메커니즘 + §3 대조표 = **소스 확정 완료(read-only)**.
-> §4(이식)·§5(라이브 검증) = **하드 스톱** — `studio_v6`(콘텐츠 프로젝트) 부재 + XumFlow MCP 미가동으로 미착수.
+> §4(이식)·§5(라이브 검증) = 당시 **하드 스톱**(studio 부재 + MCP 미가동) → §7 이후 해소, §9에서 관통 완료.
 > 이 문서는 원 브리프의 "XumFlow로 PromptScene 이식" 가정을 **확정하지 않고**, §2 경계에서 도출한
 > 포트 타깃 결정(§4)을 열어 둔 채 근거를 정리한다.
 >
@@ -269,3 +271,53 @@ UXM 1.8.5 어댑터가 `using com.IvanMurzak.Unity.MCP.Runtime.Data;`(+`GameObje
 3. **manifest 핀 이원화 경고:** studio에선 무해(manifest 단일 진위, FishNet 4.6.17 일치).
 4. **XumFlow 이중 클론 좌표:** runtime `c:\J_0\XumFlow`(@200a4a2) / studio `c:\J_0\XumFlow-studio`(@7ccd554) — 같은 repo, 다른 브랜치, 다른 프로젝트(다운로더 vs 콘텐츠 저작).
 5. **씬 주소 규약(신규 지뢰 — 조립 스킬 필수):** 등록 주소는 `Scenes/<Room>`이나 **로드 키는 leaf(`<Room>`)로도 폴백 해석**(shipped QuickStart 기본이 `T_RoomB` leaf로 동작 — QuickStart.unity `:155`). leaf 우선 사용, `InvalidKeyException` 시 전체주소 `Scenes/<Room>`. + Quick Test 단일 에디터 아바타 관측은 **`hostMode=true` 필수**(서버 전용은 미스폰). 근거: `Assets/App/Scripts/Tools/QuickTestStarter.cs:185-187,227-259`(Addressables 로드+프로세서)·`:98,118`(host).
+
+---
+
+## 9. 첫 관통 (길 1 — 샘플룸 위에 RoomCore + Ruler 얹기) — ✅ 성공 (2026-07-23, MCP 라이브 판정)
+
+> 목표: studio 샘플룸(T_RoomB) 재사용 SYSTEMS 위에 **RoomCore + 첫 FEATURE(Ruler)** 를 얹어, contract §5(FEATURES)·§6.5(런타임) 신호가 studio에서 라이브로 성립함을 증명. 절차 = §2 대조 → §3 베이스라인 → §4 RoomCore → §5 Ruler, 각 단계 QuickTest(startAsServer+hostMode+roomSceneKey, **MCP 구동**) 얹기 전/후 비교. **판정 주체 = 에이전트 MCP 자동판정**(scene/gameobject/reflection 조회 — §5 사용자 GUI 관측과 대비).
+
+### §2 선행 대조표 — 샘플룸 SYSTEMS(studio 실측) vs contract §1 (얹기 전, read-only)
+
+| contract §1 SYSTEMS | studio 실측 | 위치 | 판정 |
+|---|---|---|---|
+| Network (R-RoomServer/NetworkManager…) | `NetworkManager`(FishNet NM + NetworkHudCanvas) | **QuickStart 부트 씬** (룸 씬 아님 — Addressables 모델) | 이미 있음. RoomCore는 `InstanceFinder`(전역) 접근 → 동거 불요 |
+| Player (--PLAYER_SPAWNER + XumPlayerSpawner) | `--PLAYER_SPAWNER` = `XumPlayerSpawner`+`FishNet.Object.NetworkObject`+`XumNet.XumNetwork`+`XumSimpleSpawnClientExample` | **T_RoomB 룸 씬** | 이미 있음(C2). 씬 NetworkObject → 복제 시 SceneId 규율. `XumNetwork` 컴포넌트가 `XumNetwork.Instance` 싱글턴 공급(FishNetSpawn 스폰의 전제) |
+| RoomCore (IRoomCore + Registry) | **없음** | — | **우리가 채움(§4)** |
+| ENVIRONMENT | Directional Light + `Plane`(MeshCollider) + `Capsule`(CapsuleCollider) | T_RoomB | 이미 있음. 클릭 레이캐스트 타깃 확보 |
+| UI | `Canvas/MessageWindow` + `R-MasterCanvas/RoomHudView`(PlayerList/Leave) | T_RoomB | 이미 있음 |
+| FEATURES | 없음 | — | **우리가 채움(§5 Ruler)** |
+
+**IRoomCore 4서비스 성립(studio 소스 실측 — oxr-source-scout):**
+- **INetSpawn(FishNetSpawn)** ✅ `XumNet.XumNetwork.Instantiate(NetworkObject,Vector3,Quaternion,NetworkConnection)` = **static**, 반환 `GameObject`, **클라 호출 시 ServerRpc 왕복→null 반환**(FishNetSpawn·RulerMeasurementView가 이미 이 동작 전제). `InstanceFinder`(NetworkManager/IsClient·ServerStarted/ClientManager.Connection[**field**]/ServerManager.Despawn), `NetworkObject.IsSpawned`, `NetworkBehaviour.Despawn/IsOwner/IsServerStarted`, `[ServerRpc(RequireOwnership=false)]`·`[ObserversRpc(BufferLast=true)]` 전부 FishNet **4.6.17** 시그니처 일치. asmdef `XumNet.Runtime`+`FishNet.Runtime`는 `App.HotUpdate`가 이미 참조. 경로: `XumNetwork.cs:1041`, `InstanceFinder.cs:27/59/70/161/169`.
+- **IInteraction(SimpleClickProvider)** ✅ 레거시 `UnityEngine.Input`(studio Active Input=Both) + 레이캐스트 타깃(Plane/Capsule) + 카메라(아바타).
+- **IRoomUserState(LocalUserState)** ✅ 로컬 스텁(`MultiScaleName=>string.Empty`), studio 소스 의존 0 — "MultiScaleName 소스 부재" 우려 무의미(Ruler 미사용).
+- **IEventBus(EventBus)** ✅ 순수 C#.
+- **판정: 막는 불일치 0.** §2 경계의 "API 시그니처 다를 수 있음"이 실측으로 전부 해소.
+
+### 얹기 전/후 QuickTest 비교 (MCP 자동판정, 룸=PromptSceneRoom_1, startAsServer+hostMode)
+
+| 단계 | 신호 | 결과 |
+|---|---|---|
+| **§3 베이스라인**(복제만) | 룸 로드 / 아바타 `Desktop(Clone)` 스폰 / UXM 모션 rig(LowerBodyRegressor 등) / 콘솔 에러 | **PASS** — 룸 로드(Addressables leaf), 아바타 스폰(=복제 스포너 SceneId 유효 증명), 모션 rig, Error 0 |
+| **§4 RoomCore 얹은 후** | (a)아바타 여전히 스폰(SYSTEMS 무손상) (b)RoomCore.Instance 초기화 + 빈 레지스트리 + 내장 4서비스 등록 + SimpleClickProvider 자동추가 | **PASS** — 아바타 스폰 유지, `Instance` 초기화, `Contents.All=0`, 서비스=[IEventBus,IInteraction,INetSpawn,IRoomUserState], Error 0 |
+| **§5 Ruler 얹은 후** | (a)SYSTEMS 정상 (b)ruler 자기등록(`Contents.All=[ruler]`, Meta 룰러/측정) (c)SetEnabled(true/false) 무예외 (d)측정 실동작 | **PASS** — 아바타 스폰 유지. ruler 자기등록. SetEnabled 양방향 무예외. **바닥 Plane 실 raycast 2점→OnClick×2→`RulerMeasurement(Clone)` 네트워크 스폰(pos=(1,0,1)=중점), LineRenderer(끝점 전파)+DistanceLabel '1.41 m'(=√2) 빌드, NetworkObject.IsSpawned=True**, Error 0 |
+
+### 산출물 (studio, `Assets/App/`)
+- **룸:** `Scenes/PromptSceneRoom_1.unity`(T_RoomB 복제) + Addressables 등록(leaf 주소 `PromptSceneRoom_1`, 라벨 `RoomScene`, `Default Local Group`).
+- **Core:** `Scripts/ContentLogic/PromptScene/Core/{Contracts,RoomContentRegistry,SimpleClickProvider,RoomCore}.cs`(namespace `PromptScene.Core`, App.HotUpdate 어셈블리 内 — Smart-Deploy 경계). **소스 무개조 이식**(§2에서 API 차이 0 확인 → verbatim).
+- **FEATURE:** `Scripts/ContentLogic/PromptScene/Content/Ruler/{RulerContent,RulerMeasurementView}.cs`.
+- **네트워크 프리팹:** `Prefabs/RulerMeasurement.prefab`(NetworkObject + RulerMeasurementView) → DefaultPrefabObjects 편입(6→7) + Addressables(`Network/Prefabs/RulerMeasurement`, `Network/DefaultPrefabObjects`).
+- **씬 계층:** `===== SYSTEMS =====`/RoomCore, `===== FEATURES =====`/Ruler(measurementPrefab 배선). 기존 네트워크 씬 오브젝트(--PLAYER_SPAWNER) **재배치 안 함**(SceneId churn 회피 — 헤더 폴더는 신규 추가만).
+
+### 스킬 Smart-Deploy 재작성용 실측 절차 (다음 단계 = 4스킬 EXECUTE/VERIFY 정독 후)
+- **씬 등록:** `ContentManagerWindow.RegisterScenes` = `settings.AddLabel("RoomScene")` → `CreateOrMoveEntry(guid,"Default Local Group")` → `entry.address=leaf` → `entry.SetLabel("RoomScene")`. ⚠️ **GUI `Apply`는 백엔드 씬이름 중복검사(로그인 게이트, 401)를 먼저 탄다**(`ContentManagerWindow.cs:1068-1076`) — 로컬 베이스라인은 이 검사 불요이므로 Addressables 쓰기만 직접 재현하면 됨(타인 번들 충돌 가드는 원격 배포 때만 의미).
+- **네트워크 프리팹 등록(신 C1):** `FishNet.Editing.PrefabCollectionGenerator.Generator.GenerateFull(null,false,true)`(리플렉션) → `Assets/DefaultPrefabObjects.asset` 프로젝트 스캔 재생성 → `RegisterDefaultPrefabObjectsInAddressables`(addr `Network/DefaultPrefabObjects`). 프리팹은 `Assets/App/Prefabs/`에 둬야 스캔됨.
+- **QuickTest MCP 구동:** `QuickTestStarter`(startAsServer=true+**hostMode=true**+roomSceneKey=leaf) SerializedObject 세팅 → `EditorApplication.isPlaying=true` → scene-list-opened/scene-get-data/gameobject-find/reflection으로 판정 → `isPlaying=false` + 테스트값 원복(디스크 미저장). `console-get-logs`는 "2 event systems" 경고 폭주 가능 → Error 필터 + 씬/오브젝트 직접 조회가 확실.
+- **측정 주입(하네스):** 단일 에디터 MCP는 실제 마우스 이동 불가 → `Physics.Raycast`(바닥 Plane)로 실 RaycastHit 획득 → private `RulerContent.OnClick(hit)` 리플렉션 2회. **정직 캐비엇: "실제 마우스 클릭 이벤트→레이캐스트" 자체는 미검증**(D2/M4와 동일 경계) — 검증된 것은 OnClick 이후 측정·스폰·전파 경로.
+
+### 정직 계약 (증명 범위)
+- **증명됨:** RoomCore(4서비스) + Ruler(자기등록·토글·네트워크 측정 스폰·RPC 끝점 전파)가 **studio 샘플룸 SYSTEMS 위에서 §5/§6.5 성립**. 단일 에디터 host QuickTest, MCP 자동판정, Error 0.
+- **밖(후속 세션):** 2클라 파리티(별도 데스크톱 프로세스), 실제 마우스-클릭 레이캐스트, TargetProps/ScoreHud/COMPOSITION(D2) 이식, 원격 Addressables 배포(Build & Package), 실기기/XR 입력. **스킬(assemble/compose/scaffold) Smart-Deploy 재작성**은 이 관통으로 절차가 실측되었으니 다음 단계(스킬 정독 후).
+
