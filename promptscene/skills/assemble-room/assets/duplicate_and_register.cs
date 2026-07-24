@@ -14,8 +14,9 @@ using UnityEditor.AddressableAssets;
 using UnityEditor.AddressableAssets.Settings;
 
 public class PS_DuplicateAndRegister {
-    const string ROOM = "AssembleTest_1";   // <-- new room leaf name (no extension). This is the Addressables address + QuickTest roomSceneKey.
-    const string BASE = "T_RoomB";          // <-- base sample room to clone (user-specified base, else the sample T_RoomB)
+    const string ROOM = "AssembleRoom";     // <-- new room leaf name (no extension). This is the Addressables address + QuickTest roomSceneKey.
+    const string BASE = "T_RoomA";          // <-- base sample room to clone. Default T_RoomA has NO decorative Capsule in
+                                            //     ENVIRONMENT (T_RoomB does — the migration §14.3 occlusion trap). Override for a user base.
     const string SCENES_DIR = "Assets/App/Scenes/";
     const string GROUP = "Default Local Group";
     const string LABEL = "RoomScene";

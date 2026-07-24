@@ -4,13 +4,14 @@
 // (the scene MUST already be open & persistent — that is what lets FishNet's sceneSaving hook preserve SceneId).
 //
 // SKELETON ONLY (boundary):
-//   ===== SYSTEMS =====   RoomCore (auto-adds SimpleClickProvider + registers 4 services) + Player/--PLAYER_SPAWNER
+//   ===== SYSTEMS =====      RoomCore (auto-adds SimpleClickProvider + registers 4 services) + Player/--PLAYER_SPAWNER
 //   ===== ENVIRONMENT =====  base lights / floor / primitives
-//   ===== UI =====        base canvases
-//   ===== FEATURES =====  EMPTY — features are add-component's job.
-//   NO ===== COMPOSITIONS ===== — that layer is created only when a COMPOSITION is added (add-component). Boundary.
+//   ===== UI =====           base canvases
+//   ===== FEATURES =====     EMPTY — feature CONTENT is add-component's job.
+//   ===== COMPOSITIONS ===== EMPTY — composition CONTENT is add-component's job.
+// The skeleton lays down the empty FEATURES + COMPOSITIONS layer folders; it never puts code/content in them.
 //
-// studio deviations from contract §1 (legit): no Network sub-folder (NetworkManager = boot scene), no COMPOSITIONS,
+// studio deviations from contract §1 (legit): no Network sub-folder (NetworkManager = boot scene),
 // no _DYNAMIC (runtime-only). See build-studio-room §3 / migration §9.
 using UnityEngine;
 using UnityEditor;
@@ -22,7 +23,7 @@ using UnityEngine.SceneManagement;
 using UnityEditor.SceneManagement;
 
 public class PS_BuildSkeleton {
-    const string ROOM = "AssembleTest_1"; // <-- room leaf name (must match Phase 1)
+    const string ROOM = "AssembleRoom"; // <-- room leaf name (must match Phase 1)
 
     static Type FindType(string full){
         foreach(var a in AppDomain.CurrentDomain.GetAssemblies()){ var t=a.GetType(full); if(t!=null) return t; }
@@ -49,7 +50,8 @@ public class PS_BuildSkeleton {
         var systems = Header("===== SYSTEMS =====");
         var env     = Header("===== ENVIRONMENT =====");
         var ui      = Header("===== UI =====");
-        Header("===== FEATURES =====");   // empty on purpose (boundary)
+        Header("===== FEATURES =====");       // empty layer folder on purpose (content = add-component)
+        Header("===== COMPOSITIONS =====");   // empty layer folder on purpose (content = add-component)
 
         GameObject Sub(GameObject parent, string n){
             var t=parent.transform.Find(n); if(t!=null) return t.gameObject;
@@ -99,11 +101,15 @@ public class PS_BuildSkeleton {
         sb.AppendLine("headers: SYSTEMS="+roots.Any(g=>g.name=="===== SYSTEMS =====")
                      +" ENVIRONMENT="+roots.Any(g=>g.name=="===== ENVIRONMENT =====")
                      +" UI="+roots.Any(g=>g.name=="===== UI =====")
-                     +" FEATURES="+roots.Any(g=>g.name=="===== FEATURES ====="));
-        sb.AppendLine("COMPOSITIONS absent="+(!roots.Any(g=>g.name.Contains("COMPOSITIONS")))+" (expect True — boundary)");
+                     +" FEATURES="+roots.Any(g=>g.name=="===== FEATURES =====")
+                     +" COMPOSITIONS="+roots.Any(g=>g.name=="===== COMPOSITIONS ====="));
         sb.AppendLine("RoomCore under SYSTEMS="+(roomCore.transform.parent==systems.transform));
         var feat = Root("===== FEATURES =====");
-        sb.AppendLine("FEATURES child count="+(feat!=null?feat.transform.childCount:-1)+" (expect 0 — boundary)");
+        var comp = Root("===== COMPOSITIONS =====");
+        sb.AppendLine("FEATURES child count="+(feat!=null?feat.transform.childCount:-1)+" (expect 0 — content=add-component)");
+        sb.AppendLine("COMPOSITIONS child count="+(comp!=null?comp.transform.childCount:-1)+" (expect 0 — content=add-component)");
+        var caps = env.GetComponentsInChildren<Transform>(true).Count(t=>t.gameObject.name=="Capsule");
+        sb.AppendLine("ENVIRONMENT Capsule count="+caps+" (expect 0 with default base T_RoomA)");
 
         if(spawner!=null){
             var nob = spawner.GetComponent(noType);

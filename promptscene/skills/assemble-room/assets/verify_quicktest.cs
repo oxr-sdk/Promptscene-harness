@@ -21,7 +21,7 @@ using System.Text;
 using UnityEngine.SceneManagement;
 
 public class PS_VerifyQuickTest {
-    const string ROOM = "AssembleTest_1";     // leaf == Addressables address == roomSceneKey
+    const string ROOM = "AssembleRoom";     // leaf == Addressables address == roomSceneKey
     static string TmpDir  => Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Temp"));
     static string OrigF   => Path.Combine(TmpDir, "ps_qt_orig.txt");
     static string OutF    => Path.Combine(TmpDir, "ps_qt_result.txt");
@@ -64,6 +64,16 @@ public class PS_VerifyQuickTest {
         for(int i=0;i<SceneManager.sceneCount;i++){ var s=SceneManager.GetSceneAt(i); if(s.isLoaded) loaded.Add(s.name); }
         bool roomLoaded = loaded.Contains(ROOM);
         sb.AppendLine("S1 room loaded ("+ROOM+")="+roomLoaded+"  [scenes: "+string.Join(",", loaded)+"]");
+
+        // structure signal — 5 skeleton layers present (FEATURES + COMPOSITIONS empty folders) + no Capsule (default base).
+        var roomScn = SceneManager.GetSceneByName(ROOM);
+        if(roomScn.IsValid() && roomScn.isLoaded){
+            var rNames = roomScn.GetRootGameObjects().Select(g=>g.name).ToList();
+            bool comp = rNames.Contains("===== COMPOSITIONS =====");
+            bool feat = rNames.Contains("===== FEATURES =====");
+            int caps = roomScn.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<Transform>(true)).Count(t=>t.gameObject.name=="Capsule");
+            sb.AppendLine("S1b layers: FEATURES="+feat+" COMPOSITIONS="+comp+"  ENVIRONMENT Capsule count="+caps+" (expect 0)");
+        }
 
         // signal 2 — avatar Desktop(Clone) spawned (proves spawner SceneId valid). Studio has no lobby (boot scene).
         GameObject avatar = null;
