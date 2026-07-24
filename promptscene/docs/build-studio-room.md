@@ -111,6 +111,21 @@ FEATURE를 데스크톱/Meta/XREAL/(태블릿/Vision) 어디서나 **포인팅**
 
 ---
 
+## 6.5 COMPOSITION 배선 (COMPOSITIONS 층 + 네트워크 권위 프리팹 + 집계 루프) — ✅ 2026-07-24 (migration §14)
+
+FEATURE들을 게임 루프로 조율하는 **COMPOSITIONS 층**. FEATURE 이식(§2)과 다른 절차: 새 씬 층 + 네트워크 권위 프리팹 + 서버권위 집계. 실증 = TargetShootoutMatch(과녁 점수전).
+
+- **COMPOSITION 스크립트 = plain MonoBehaviour(IRoomContent 아님)** → `Contents` 레지스트리 **미등록**. 씬에 상주하며 `Start`에서 버스 구독. (FEATURE=자기등록 / COMPOSITION=씬 상주·미등록 — 등록 모델이 다름.) 이벤트 **타입만** 참조(TargetHitEvent/ScoreChangedEvent), FEATURE **클래스** 참조 0(grep 확인) → FEATURE↔FEATURE 참조 0 불변.
+- **네트워크 권위 프리팹 = ChatChannelView 동형(§Chat/§10 재사용).** `MatchView.prefab` = **NetworkObject + hot 뷰**(NetworkBehaviour). 상행 `[ServerRpc(RequireOwnership=false)]`(발신자=서버 주입 `NetworkConnection sender=null`, 위조 불가) + 하행 `[ObserversRpc]` 방송. **신규 플랫폼 API 0.** 씬측 COMPOSITION과는 **static 이벤트+Latest 스냅샷**으로 디커플. 렌더러 없는 불가시 오브젝트(ChatChannel 형). hot 뷰 직렬 필드는 **코드 기본값**(field initializer)이면 Prefab-로더 미채움 지뢰 무관.
+- **C1:** MatchView 저장 시 FishNet PrefabGenerator 자동 편입 + `RunFishNetGenerateFull` 재확인(§3c). `DefaultPrefabObjects` count +1.
+- **COMPOSITIONS 층 생성:** 씬 root에 `===== COMPOSITIONS =====`(빈 GameObject) — contract §1에 **정의된 층을 처음 채우는 것**(구조 변경 아님). 자식에 COMPOSITION MonoBehaviour + `matchPrefab`→프리팹 **씬 임베드 배선**(3b). COMPOSITION MonoBehaviour는 NetworkObject 아니라 SceneId 무관(§3 재부모 이슈 없음); MatchView는 런타임 스폰(_DYNAMIC).
+- **스폰-또는-재사용:** COMPOSITION `EnsureMatch`가 IsClientStarted 뒤 MatchView **1개만** 스폰(2클라 각자 스폰 방지 = ChatContent 채널 패턴, 트랩 I 재시도 흡수).
+- **집계 루프(서버권위):** 명중(FEATURE HitEvent 발행)→COMPOSITION 구독→`ReportHit`(ServerRpc)→**서버만 집계**→ObserversRpc 방송→ScoreChangedEvent 발행→ScoreHud 표시→선취 N점 승자→resetDelay 후 리셋. **집계·승패·리셋은 전부 서버.**
+- **§5 QuickTest(단일 host) 판정:** COMPOSITION 상주(미등록)·MatchView spawn-once·**실제 점수 루프**(명중 3회→집계 1→2→3→승자 방송→리셋 빈 보드, `[MatchView] scoreboard ...` 전 전이 로그)·ScoreHud 실 수신(주입 아님)·Error 0. **주입 함정:** 가림(ENVIRONMENT Capsule 등) 없는 가시 과녁을 골라 `SubmitExternalRay`(레이가 엉뚱한 콜라이더에 먼저 맞으면 명중 안 됨).
+- **정직:** 단일 host라 "서버권위"는 구조로 성립하나 **2클라 점수 동기 파리티는 2번째 프로세스 필요**(§7 큐). 실 마우스클릭→명중 원경로는 `SubmitExternalRay` 경계.
+
+---
+
 ## 7. 검증 범위 / 정직 계약
 
 - ✅ **증명(단일 에디터 host, MCP + 사람 GUI):** 룸 조립(길1)·RoomCore·Ruler(§5)·5층 구조·SceneId 재부모 보존·World Space UI **데스크톱 마우스**(사람) + **XR 컨트롤러 sim**(사람: UI 버튼 클릭 + 바닥 측정).
@@ -121,4 +136,4 @@ FEATURE를 데스크톱/Meta/XREAL/(태블릿/Vision) 어디서나 **포인팅**
   - poke로 바닥 측정(현재 near-far 레이만).
   - 번들 한글 폰트(현재 OS 동적 폰트 = 데스크톱만).
   - **배포(Smart Deploy / Build & Package / Bundle Uploader) 전체 = 미경험 → `build-studio-deploy.md` 후속.**
-  - 2인(QuickTest 에디터 2개) / 2클라 파리티 = studio 미경험(다음 단계). **토폴로지 정찰(xumflow-migration §10.3):** QuickTest = MST 아닌 **FishNet 직접연결 `localhost:7770`**(서버=startAsServer✅, 클라=startAsServer❌). 2클라 = host 에디터 A + 별도 프로세스 B 1개면 성립하나 **B 생성 수단 부재**(ParrelSync·MPPM 미설치, 경량 스탠드얼론 빌드 없음 → Smart-Deploy 미경험). 착수 전 MPPM 추가 vs 클론 vs 빌드 결정 필요.
+  - 2인(QuickTest 에디터 2개) / 2클라 파리티 = studio 미경험(다음 단계). **토폴로지 정찰(xumflow-migration §10.3):** QuickTest = MST 아닌 **FishNet 직접연결 `localhost:7770`**(서버=startAsServer✅, 클라=startAsServer❌). 2클라 = host 에디터 A + 별도 프로세스 B 1개면 성립하나 **B 생성 수단 부재**(ParrelSync·MPPM 미설치, 경량 스탠드얼론 빌드 없음 → Smart-Deploy 미경험). 착수 전 MPPM 추가 vs 클론 vs 빌드 결정 필요. **일괄 대기 큐:** Chat 양방향 · Grab 핸드오버 · **과녁/점수 동기 파리티(§6.5 COMPOSITION — 별도 클라 B가 같은 서버권위 스코어보드 수신)**.

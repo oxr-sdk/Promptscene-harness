@@ -484,4 +484,103 @@ studio 2번째 프로세스 수단 부재(§10.3 — MPPM/ParrelSync 미설치, 
 1. **Chat 양방향**(§10.3): A↔B 송수신 파리티.
 2. **Grab 핸드오버**(XRCollab M2 5신호 대응 — 정의만 확정): ①A잡기→Owner=A 양측 ②A놓기→위치전파+Owner 유지(비반납 Takeover) ③B탈취→Owner=B(A도 확인) ④B놓기→A가 위치 관측 ⑤A재탈취→Owner=A. 위치 전파 = client-auth NetworkTransform(새 오너 authority 자동 승계, grab-ownership-survey §Q3).
 3. (후속) 다트 비행 동기·명중→점수(2인+COMPOSITION).
+4. **(신규 §12) 과녁 공유 파리티**: 2클라가 하나의 과녁 세트 공유(spawn-or-reuse), 한쪽 명중이 양쪽에 반영 — Loop 3(COMPOSITION 서버권위 집계)와 함께 집행.
+
+## 12. TargetProps FEATURE 이식 (D2 점수게임 여정 Loop 1) — ✅ 단일 host §5 PASS (2026-07-24)
+
+> 목표: XRCollab D2 파일럿 #1 **TargetProps**(과녁 스폰→명중 시 `TargetHitEvent` 버스 발행까지만, 점수 모름)를 studio에 이식. "5층 전체(COMPOSITIONS 포함) studio 성립" 여정의 첫 루프. §5 + 단일 host 검증(2클라 공유 과녁 = §11.6 큐로 보류). 판정 주체 = 에이전트 MCP.
+> **결과: 코드 verbatim + 네트워크 과녁 프리팹 + C1 + 씬 배선 + 명중→버스 발행 + 버스 스모크 = ✅ 단일 host PASS, Error 0.**
+
+### 12.1 선행(IEventBus) = 이미 verbatim 상속됨 — 계약 무수정, 건너뜀
+플랜은 "IEventBus를 studio 계약에 additive 추가(= '계약 무수정'을 처음 깸)"를 선행으로 두었으나, **studio Core는 §9에서 XRCollab을 verbatim 복사**했고 XRCollab Core는 D2(2026-07-21)에서 이미 `IEventBus`를 얻었으므로 studio가 **공짜로 상속**받았다. 실측: `diff studio/…/Core/{Contracts,RoomCore}.cs  XRCollabDemo/…/Core/{…}.cs` = **IDENTICAL**. 즉 `IEventBus` 인터페이스 + `EventBus` 구현(예외격리·(T,handler)멱등) + `RegisterService<IEventBus>(new EventBus())`(RoomCore.Awake, 4번째 내장 서비스)가 이미 존재. **새로 깰 계약 없음** — plannd의 "처음 깸" 경고는 이 트랙에선 무효(추가 액션 0). 계약 파일 이번 세션 무수정.
+
+### 12.2 산출물 (studio `Assets/App/`)
+- **소스:** `Scripts/ContentLogic/PromptScene/Content/TargetProps/{TargetProps.cs, TargetMarker.cs}` — XRCollab verbatim(툴팁 1줄만 3b 씬배선 주석 보강, Chat 포트 선례와 동일). `TargetHitEvent` struct는 TargetProps.cs 내부(FEATURE가 자기 이벤트 소유). App.HotUpdate에 **3타입 로드**(TargetProps/TargetMarker/TargetHitEvent), CS 에러 0, 기존 3기능 무손상. `PromptScene.Core`만 의존 — 다른 FEATURE/COMPOSITION 타입 참조 0(D2 구조 신호).
+- **프리팹:** `Prefabs/Target.prefab` = Sphere(MeshFilter/MeshRenderer/**SphereCollider**) + **NetworkObject** + **TargetMarker**(빈 태그 컴포넌트, 직렬 필드 0 = Prefab-로더 미채움 지뢰 무관). scale 0.5. **머티리얼 = `TargetMat.mat`(URP/Lit 빨강)** — 플랜 ⚠마젠타 함정 선제 회피(XRCollab에서 Target이 마젠타였음; studio는 프리팹 생성 시부터 `Shader.Find("Universal Render Pipeline/Lit")` 명시, 디스크 셰이더명 확인).
+- **신 C1:** `Target.prefab` 저장 시 studio FishNet **PrefabGenerator가 자동 편입**(임포트 훅 활성) → `DefaultPrefabObjects` 이미 Target 포함(count=10). `RunFishNetGenerateFull`(ContentManagerWindow 정본, 리플렉션)로 재확인 + `Network/DefaultPrefabObjects` Addressables 컬렉션 재등록. ⚠️ **per-prefab 개별 Addressables 엔트리(`Network/Prefabs/Target`)는 미추가** — QuickTest host 스폰은 DefaultPrefabObjects **컬렉션 멤버십**만 쓰므로 불요(실측 IsSpawned=True). 개별 엔트리는 **원격 배포(Smart-Deploy, 미경험)** 때 필요 → 그때 Grab/Chat처럼 수동 추가.
+- **배치:** `PromptSceneRoom_1` `===== FEATURES =====/TargetProps`(Ruler·Chat·Grab과 형제, **4기능 공존**) + `targetPrefab`→Target **씬 임베드 배선**(3b, scene 로더가 채움). 기존 네트워크 씬 오브젝트(--PLAYER_SPAWNER) 무재배치 → SceneId churn 회피.
+
+### 12.3 §5 + 단일 host 검증 (MCP 자동판정, host, PromptSceneRoom_1)
+| 신호 | 결과 |
+|---|---|
+| SYSTEMS 무손상 | 룸 로드(PromptSceneRoom_1)·`Desktop(Clone)` 아바타 스폰 유지 |
+| target-props 자기등록 | `Contents=[chat,ruler,target-props,grabbable-props]` (**4기능 공존**) |
+| Meta 유효 | DisplayName='과녁', Category='게임', DefaultOn=False |
+| SetEnabled 멱등 + 무예외 | true×2 / false×2 모두 무예외, IsEnabled 정확 |
+| 과녁 네트워크 스폰 | **4× `Target(Clone)` 전부 `IsSpawned=True`** — 로컬 폴백 아닌 실 `INetSpawn.Spawn(prefab)` 경로(host=networked). 위치 = 정면 호(arc), TargetMarker 보유 |
+| 명중→버스 발행 | `SimpleClickProvider.SubmitExternalRay(ray)`(실 클릭 핸들러 경로, §6) → 사전 Physics.Raycast가 Target 콜라이더→TargetMarker 확인 → `TargetProps.OnClick` → 로그 `[target-props] hit at (1.00,1.30,3.50) — published TargetHitEvent (bus=True)` (스택: OnClick←SubmitExternalRay) |
+| 버스 스모크(런타임) | 전달=1 / (T,handler)멱등=2(≠3) / 예외격리(형제 핸들러 생존, throw는 EventBus try/catch가 로그) / 해지 안정=3 |
+| 콘솔 | **Error 0.** Exception 2건 모두 해명: ①`XREALXRPlugin` DllNotFound=**플레이 시작 시** XREAL 패키지 OnLoad(환경 아티팩트, 기능 무관·기존) ②`PS_BUSSMOKE_EXPECTED`=격리 테스트 **의도적** throw(`EventBus.Publish` try/catch가 잡음) |
+
+### 12.4 정직 계약 (증명 범위)
+- **증명됨(단일 에디터 host, MCP 자동판정):** TargetProps verbatim 컴파일·자기등록·Meta·SetEnabled 멱등/무예외·4과녁 네트워크 스폰(IsSpawned)·명중→`TargetHitEvent` 버스 발행(bus=True)·버스 스모크 4항·4기능 공존·Error 0.
+- **밖(미실증):**
+  - **실제 마우스/포인터 이벤트→레이캐스트** 원경로 = 주입은 `SubmitExternalRay` 경계(§4/§6/D2와 동일 캐비엇). "클릭 감지" 내부 로직은 TargetProps.Update의 마우스 클릭 — 여기선 미주입.
+  - **2클라 공유 과녁 파리티**(spawn-or-reuse로 한 세트 공유, 한쪽 명중이 양쪽 반영) = studio 2인 인프라 블록으로 보류(§11.6 큐 #4).
+  - **점수/승자/리셋** = TargetProps는 모름(설계 의도). Loop 2 ScoreHud(ScoreChangedEvent 구독)·Loop 3 COMPOSITION(TargetShootoutMatch 서버권위 집계)에서.
+  - URP 빨강은 **셰이더명만 확인**, 사람 미감 판정 없음.
+- **다음:** Loop 2 = ScoreHud 이식(ScoreChangedEvent 구독·IMGUI 표시만, 과녁 모름; TargetProps와 상호참조 0 grep 확인 + §5). 그 다음 Loop 3 = TargetShootoutMatch COMPOSITION(+MatchView) → `===== COMPOSITIONS =====` 층 studio 첫 생성 → 5층 전체 성립.
+
+## 13. ScoreHud FEATURE 이식 (D2 점수게임 여정 Loop 2) — ✅ 단일 host §5 PASS (2026-07-24)
+
+> 목표: XRCollab D2 파일럿 #2 **ScoreHud**(ScoreChangedEvent 구독→IMGUI 점수판 표시만, 과녁·경기·득점 모름)를 studio에 이식. TargetProps와 **상호 타입 참조 0**(D2 직교성 신호). §5 + 단일 host.
+> **결과: 코드 verbatim + 상호참조 0 + 구독→표시 상태 채움 + 해지 확인 = ✅ 단일 host PASS, Error 0. 버스 실사용자 2종(TargetProps 발행 / ScoreHud 구독)으로 스택 rule-of-two studio 성립.**
+
+### 13.1 산출물 (studio `Assets/App/`)
+- **소스:** `Scripts/ContentLogic/PromptScene/Content/ScoreHud/ScoreHud.cs` — XRCollab verbatim(studio note 1문단만: IMGUI가 2-EventSystem에 무영향, build-studio-room §5). `ScoreChangedEvent` struct는 ScoreHud.cs 내부. **"FEATURE가 자기가 소비하는 이벤트를 소유"** → 생산자(COMPOSITION)가 ScoreHud 타입에 의존, 역방향 아님(한방향 규칙 유지). App.HotUpdate에 ScoreHud/ScoreChangedEvent 로드, CS 0.
+- **프리팹·C1 불요:** ScoreHud는 순수 IMGUI(`OnGUI`), 네트워크 오브젝트·필수 직렬 필드 없음 → 프리팹/DefaultPrefabObjects 무관.
+- **배치:** `PromptSceneRoom_1` `===== FEATURES =====/ScoreHud`. FEATURES 자식 **5종 공존**(Ruler,Chat,GrabbableProps,TargetProps,ScoreHud). 배선 불요.
+- **⭐ D2 직교성 실측(grep 양방향):** TargetProps→(ScoreHud|ScoreChangedEvent)=NONE, ScoreHud→(TargetProps|TargetHitEvent|TargetMarker)=NONE. **두 FEATURE 상호 타입 참조 0** — 이 층의 §5급 신규 검증 신호. 각자 `PromptScene.Core`만 의존.
+
+### 13.2 §5 + 단일 host 검증 (MCP 자동판정, host, PromptSceneRoom_1)
+| 신호 | 결과 |
+|---|---|
+| score-hud 자기등록 | `Contents=[chat,ruler,score-hud,target-props,grabbable-props]` (**5기능 공존**) |
+| Meta 유효 | DisplayName='점수판', Category='게임', DefaultOn=False |
+| SetEnabled 멱등 + 무예외 | true×2 / false×2 무예외, IsEnabled 정확. enable=Subscribe / disable=Unsubscribe |
+| 구독→표시 상태 채움 | 버스에 `ScoreChangedEvent`(ClientIds=[0,1],Scores=[2,3],Target=3,Leader=1) 발행(미래 COMPOSITION 시뮬) → ScoreHud `_hasData=True _last.Scores=[2,3] leader=1 target=3` 수신·반영 |
+| 해지(disable) | SetEnabled(false) 후 2차 발행(Scores=[9,9]) → `_last.Scores=[2,3]` **불변**(수신 안 함) = Unsubscribe 실증 |
+| 콘솔 | **Error 0.** Exception 1건=`XREALXRPlugin` DllNotFound(플레이 시작 XREAL OnLoad, 환경, 기능 무관). ScoreHud발 예외 0 |
+
+### 13.3 정직 계약 (증명 범위)
+- **증명됨(단일 host, MCP):** ScoreHud verbatim 컴파일·자기등록·Meta·SetEnabled 멱등/무예외·**버스 구독→표시 상태 채움**·해지·TargetProps와 상호참조 0·5기능 공존·Error 0. 버스 실사용자 2종 성립.
+- **밖(미실증):** **IMGUI 실제 화면 렌더**(상태 `_last`/`_hasData`까지 확인, OnGUI 픽셀 캡처 안 함 — 데스크톱 사람/스크린샷 몫) · 실제 COMPOSITION이 채운 스코어(여기선 주입) = Loop 3 · 2클라 점수 동기(§11.6 큐) · World Space uGUI 점수판(크로스플랫폼, 후속).
+- **다음: Loop 3 = TargetShootoutMatch COMPOSITION(+MatchView 네트워크 권위 프리팹).** TargetHitEvent 구독→서버권위 집계→ScoreChangedEvent 발행→리셋. studio **첫 `===== COMPOSITIONS =====` 층** 생성 → 5층 전체 성립. MatchView = ChatChannelView 동형(ServerRpc 상행 + ObserversRpc 하행, 신규 API 0).
+
+## 14. ⭐ TargetShootoutMatch COMPOSITION (D2 점수게임 여정 Loop 3) — ✅ 5층 전체 studio 성립 (2026-07-24)
+
+> 목표: XRCollab D2 첫 COMPOSITION **TargetShootoutMatch**(+네트워크 권위 프리팹 **MatchView**)를 studio에 이식 → studio **첫 `===== COMPOSITIONS =====` 층** 생성 + 명중→집계→점수→승자→리셋 **서버권위 루프 성립**. FEATURE verbatim이 아닌 **새 층 + 네트워크 권위 프리팹 + 집계 루프** = 지금까지와 성격이 다른 관통. §5 + 단일 host.
+> **⭐ 결과: 5층 전체(SYSTEMS/ENVIRONMENT/UI/FEATURES/COMPOSITIONS[+_DYNAMIC 런타임]) studio 성립 = PromptScene 아키텍처 완전 증명. 단일 클라 서버권위 루프(1→2→3→승자→리셋) 전 전이 캡처, Error 0.**
+
+### 14.1 산출물 (studio `Assets/App/`)
+- **소스:** `Scripts/ContentLogic/PromptScene/Compositions/TargetShootoutMatch/{TargetShootoutMatch.cs, MatchView.cs}` (App.HotUpdate, CS 0, 두 타입 로드).
+  - `MatchView.cs` = **verbatim**. `NetworkBehaviour` + `[ServerRpc(RequireOwnership=false)]` 상행(CmdReportHit, 발신자=서버 주입 `NetworkConnection sender=null` — 위조 불가) + `[ObserversRpc]` 하행(RpcBroadcast) + static `OnBroadcast`/`Latest`(씬측 COMPOSITION과 디커플). **ChatChannelView(§10) 동형 — 신규 플랫폼 API 0.** `INetDespawnRequest`(studio Contracts에 이미 존재).
+  - `TargetShootoutMatch.cs` = **DART 훅 1건만 유보하고 이식**(지시 §6). XRCollab은 `Subscribe<DartHitEvent>`도 하나(bus dividend: 한 점수 루프, 두 소스=클릭+던진 다트) — **DartProps 미이식**이라 `Subscribe/Unsubscribe<DartHitEvent>`+`OnDartHit` 3요소 제거, 주석으로 재추가 지점 명시(DartProps 이식 후 2줄+메서드 1개 = V1 배당금 패턴). `TargetHitEvent`(클릭 명중)만 구독.
+- **⭐ 층 규약 실측:** `TargetShootoutMatch`는 **plain MonoBehaviour**(IRoomContent 아님) → `Contents` 레지스트리 **미등록**. 씬 오브젝트로 상주하며 `Start`에서 버스 구독. FEATURE(자기등록)와 COMPOSITION(씬 상주·미등록)의 등록 모델 차이 확정.
+- **MatchView 프리팹:** `Prefabs/MatchView.prefab` = Transform + **NetworkObject** + MatchView (렌더러 없는 불가시 권위 오브젝트 = ChatChannel 형). `targetScore=3`/`resetDelaySeconds=4`는 hot 뷰 필드지만 **코드 기본값**(field initializer)이라 Prefab-로더 미채움 지뢰 무관(RulerMeasurementView 선례).
+- **신 C1:** MatchView 저장 시 FishNet PrefabGenerator 자동 편입 + `RunFishNetGenerateFull` 재확인 → `DefaultPrefabObjects` **10→11**(MatchView 포함), `Network/DefaultPrefabObjects` 재등록. (개별 addr 엔트리는 배포 시 — §12 동일 정책.)
+- **첫 COMPOSITIONS 층:** `PromptSceneRoom_1`에 root `===== COMPOSITIONS =====` 생성(contract §1 정의된 층을 **studio에서 처음 채움** — 구조 변경 아님) + 자식 `TargetShootoutMatch` + `matchPrefab`→MatchView **씬 임베드 배선**(3b). 씬 root 5층 확인: `SYSTEMS | FEATURES | ENVIRONMENT | UI | COMPOSITIONS`.
+
+### 14.2 ⭐ §5 서버권위 루프 검증 (MCP 자동판정, host, PromptSceneRoom_1) — 실제 흐름(주입 아님)
+| 신호 | 결과 |
+|---|---|
+| COMPOSITION 상주(미등록) | `Contents`=5기능(target-props/score-hud 포함, **shootout 미포함**=정상) + 씬 오브젝트 `TargetShootoutMatch`×1 |
+| MatchView 스폰(spawn-or-reuse) | `MatchView`×**1**(중복 없음, EnsureMatch가 IsClientStarted 뒤 1개만) |
+| ⭐ 실제 점수 루프 | **클릭 명중 3회**(`SubmitExternalRay` 실 핸들러 경로)→`[target-props] published TargetHitEvent`×3 → COMPOSITION `OnTargetHit`→`MatchView.ReportHit`(ServerRpc) → **서버 집계 `[MatchView] scoreboard players=1 leader=P0 over=False`(1점)→(2점)→`over=True winner=P0`(3점)** → ObserversRpc 방송(스택 = FishNet `RpcReader___Observers_RpcBroadcast`←Tugboat) → `OnScoreBroadcast`→ScoreChangedEvent 발행 |
+| 승자 공지 | `[shootout] WINNER P0 (first to 3). announce=self-display; chatPresent=True` — Chat 존재는 **런타임 레지스트리 조회**(`GetById("chat")`, 타입 참조 0)로 감지 |
+| 리셋·재판 | resetDelay(4s) 후 `[MatchView] scoreboard players=0 over=False` = **빈 보드 리셋** 방송 → HUD 클리어 |
+| ScoreHud 실 수신 | 리셋 후 **1회 명중** → `ScoreHud._last`: ids=[0] scores=[1] leader=0 over=False = **실제(주입 아닌) 점수가 HUD 도달**(Loop2의 "주입"이 여기서 "실 흐름"으로 전환) |
+| 공존 | features(Contents)=5 + compositionObj=1 + MatchView=1 = **6 콘텐츠 오브젝트 공존** |
+| Target 셰이더 | URP/Lit(§12 빨강) — 마젠타 아님(기록만) |
+| 콘솔 | **Error 0.** Exception 1건=`XREALXRPlugin` DllNotFound(플레이 시작 XREAL OnLoad, 환경, 기능 무관) |
+
+### 14.3 정직 계약 (증명 범위)
+- **⭐ 증명됨(단일 host, MCP):** 5층 전체 studio 성립 · 단일 클라 **서버권위 점수 루프**(명중→집계 1→2→3→승자→리셋, 전 전이 방송 로그 캡처) · ScoreChanged→ScoreHud 실 수신 · **FEATURE↔FEATURE 참조 0 유지 + COMPOSITION만 두 FEATURE 조율**(이벤트 타입만 참조, 클래스 참조 0 — grep) · 발신자=서버 주입(위조 불가) · MatchView spawn-once · Error 0.
+- **밖(미실증):**
+  - **2클라 점수 동기 파리티**(별도 프로세스 B가 같은 스코어보드 수신) = MPPM 대기(§11.6 큐 #3/#4). 단일 host라 "서버권위"는 구조로 성립하나 **네트워크 전파 파리티는 2번째 클라 필요**.
+  - **실제 마우스클릭 레이캐스트→명중** 원경로 = 주입은 `SubmitExternalRay` 경계(§12/§4/§6 동일 캐비엇).
+  - **다트 명중→점수** = DartProps 미이식(§14.1 유보). 이식 후 COMPOSITION에 `Subscribe<DartHitEvent>` 2줄+OnDartHit 재추가로 연결(V1 배당금).
+  - IMGUI 승자 배너/점수판 실제 픽셀 렌더 = 상태까지만(사람/스크린샷 몫).
+- **함정(신규):** ENVIRONMENT의 **Capsule이 최좌측 과녁(x=-3)을 가림** → 그 과녁행 레이캐스트가 Capsule에 먼저 맞음(marker=False). 주입 검증은 **가시(비가림) 과녁을 골라** 쏠 것(4개 중 x=3/-1/1은 명중, x=-3은 가림). 기능 결함 아님(배치 아티팩트).
+- **다음:** ①2클라 파리티(MPPM) — Chat 양방향·Grab 핸드오버·**과녁/점수 동기** 일괄(§11.6). ②DartProps 이식 후 COMPOSITION에 다트 연결. ③스킬(assemble/compose/scaffold) Smart-Deploy 재작성.
 
