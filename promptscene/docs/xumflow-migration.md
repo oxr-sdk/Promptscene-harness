@@ -612,3 +612,36 @@ studio 2번째 프로세스 수단 부재(§10.3 — MPPM/ParrelSync 미설치, 
 - **밖(경계):** FEATURE/COMPOSITION 추가(=add-component), 2클라 파리티, 실기기/XR, Smart-Deploy 배포.
 - **다음:** `add-component` 에이전트(이 스킬을 부품으로 호출) — FEATURES/COMPOSITIONS 층을 이 골격 위에 얹음.
 
+## 16. `/add-component` 스킬+에이전트 (골격 채우기: FEATURE/COMPOSITION 이식·배선·검증) — ✅ 자기검증 PASS (2026-07-24)
+
+> 목표: 사용자 의도의 **컴포넌트**(FEATURE 또는 COMPOSITION)를 이미 조립된 룸에 얹고 contract §5+§6.5로 라이브 증명하는 스킬+에이전트. `/assemble-room`(골격)의 **채움 짝** — assemble-room이 빈 FEATURES/COMPOSITIONS 층을 예약하면 add-component가 수요 시 채운다("골격=5층 예약 / 채움=수요 시", contract §1). 절차 SSOT는 [build-studio-room.md](build-studio-room.md) §2/§3/§3b/§3c/§4/§6.5 + 이 문서 §9~§15(6루프 실측)이고, 스킬은 그것을 **감싸기만** 함(복제 금지). `/assemble-room`·`/cross-platform-ui`·`oxr-docs-routing`을 부품으로 **참조 호출**.
+
+### 16.1 회고 A — 6루프(§9~§14) 공통 vs 차이 추출 (스킬 EXECUTE의 SSOT)
+루프별 실측(§9 Ruler / §10 Chat / §11 Grab-XRI / §12 TargetProps / §13 ScoreHud / §14 Match-COMPOSITION)에서 공통 척추와 분기축을 뽑아 스킬 EXECUTE로 동결:
+- **공통(모든 루프):** ①소스=`ContentLogic/PromptScene/`(App.HotUpdate, 별도 asmdef 불요) + **컴파일 0에러 게이트**(isCompiling==false + AppDomain 타입 로드) 먼저, 라이브 QuickTest 게이트 나중. ②**§3b 직렬화 규율** — 프리팹=기본 컴포넌트만(NetworkObject/Rigidbody/렌더러/hot 뷰 직렬필드 0=런타임 배선), FEATURE 루트/COMPOSITION의 hot 직렬 프리팹 필드는 **씬 임베드 배선**(씬 로더가 채움; 프리팹-자산 로더는 안 채우는 지뢰). ScriptableObject 금지, `[Serializable]` 컨테이너→App.Bridges(baked). ③층 배치(FEATURE→FEATURES 한 자식 GO / COMPOSITION→COMPOSITIONS), **--PLAYER_SPAWNER 무재배치**(SceneId churn 회피, 헤더는 additive). ④§5 QuickTest 신호(SYSTEMS 무손상=아바타 스폰 · 콘텐츠별 체크 · **Error 0**, "2 event systems" 경고는 Error 필터로 무시).
+- **차이(분기축):** ①**네트워크 프리팹 유무** — Ruler/Chat/Grab/Target/Match=유(→ 신 C1: `PrefabCollectionGenerator.Generator.GenerateFull(null,false,true)` → DefaultPrefabObjects 재등록, `IsSpawned=True`+spawn-once 판정; 개별 Addressables 엔트리 `Network/Prefabs/<P>`는 QuickTest 불요·Smart-Deploy 필요) ↔ ScoreHud=무(C1 스킵, 순수 IMGUI). ②**XRI 유무**(§11.3 3b XRI 경계: XR Grab Interactable/Rigidbody=base 어셈블리→프리팹 직접 직렬화 OK, hot 뷰=필드 0 런타임 배선; 함정=OnStartClient 한 틱 지연, `using` Toolkit+Toolkit.Interactables 둘 다). ③**FEATURE(IToggleableContent, 자기등록→Contents.All) ↔ COMPOSITION(plain MonoBehaviour, 미등록·씬 상주·이벤트 타입만 참조)**.
+
+### 16.2 회고 B — scaffold-content 흡수 결정: **(a) add-component가 흡수**
+XRCollab `/scaffold-content`은 "프롬프트→Ruler 템플릿으로 FEATURE 생성→Master/Room.exe 서버로 §5 라이브검증"이었다. add-component의 "구현+배선+검증"은 그 **studio 역할의 진부분집합 상위(superset)** — COMPOSITION·사람작성 스크립트·기존 타입 재사용·상담/견적·UI 연계까지 포함하고, 검증은 studio **QuickTest**(단일 host)로 한다. **결정: add-component가 흡수 — scaffold-content의 studio판은 만들지 않는다.** 동결된 Ruler 템플릿은 add-component의 `assets/FeatureContent.cs.template`(FEATURE 생성 분기)로 이관. XRCollab `/scaffold-content`은 XRCollab 트랙에 그대로 존치(git 이력). 향후 `/compose-room` studio판은 **assemble-room(골격) + add-component(콘텐츠)**를 참조 호출.
+
+### 16.3 산출물 (`promptscene/skills/add-component/` + `.claude/agents/add-component.md`)
+- **SKILL.md** — 커맨드. Phase 0 상담/견적(FEATURE vs COMPOSITION 분류 · capability-map 재조합✅/개척⛔ 판정 · oxr-docs-routing으로 "붙이는 법" · 지킬 수 있는 것만 약속) → Phase 1 룸(없으면 `/assemble-room` 참조) → Phase 2 컴포넌트 확보(재사용/AI생성/사람작성) → Phase 3 배치+§3b 배선 → Phase 4 §5+§6.5 QuickTest → Phase 5(옵션) `/cross-platform-ui`. 회고 A 공통/차이 표 + 회고 B 흡수 노트 + 정직 계약 내장.
+- **에이전트** `.claude/agents/add-component.md` — 상담·오케스트레이션 페르소나(스킬을 end-to-end 운전). ⚠ **세션 레지스트리 트랩**(HANDOFF §9): 세션 중 새로 만든 에이전트는 그 세션 `subagent_type`으로 미등록 → 이번 세션 자기검증은 **메인 루프가 스킬 절차를 직접 실행**(같은 절차, 문서화된 우회).
+- **자산 3종**(`script-execute`용, 리플렉션=App.HotUpdate 컴파일 의존 회피):
+  - `add_component.cs`(`PS_AddComponent.Run`) — 해당 층 헤더 확보 → 자식 GO(멱등) → AddComponent(리플렉션) → **WIRE_FIELDS/WIRE_PREFABS 씬 임베드 배선**(§3b) → SaveScene → 읽기검증(컴포넌트·필드 배선·층 카운트·**--PLAYER_SPAWNER SceneId-safe**). KIND(FEATURE/COMPOSITION)로 층 분기.
+  - `verify_component.cs`(`PS_VerifyComponent.{Setup,Check,Teardown}`) — QuickStart host §6.5(S1 룸로드·S2 아바타·S3 RoomCore) + **KIND 분기 §5**: FEATURE=자기등록(GetById)+SetEnabled 무예외/멱등+IsEnabled 추적+Meta 유효 / COMPOSITION=씬 상주 present + **레지스트리 미유출**(COMPOSITION은 자기등록 안 함). 결과 `Temp/ps_addcomp_result.txt`.
+  - `FeatureContent.cs.template` — scaffold-content에서 이관한 동결 Ruler 템플릿의 **studio 변형**(App.HotUpdate 경로·_DYNAMIC 런타임전용 주석·§3b/XRI 안내 추가; 계약 배관 R1~R5 불변).
+
+### 16.4 ⭐ 자기검증 — `/assemble-room AddCompProof_1` → `/add-component 룰러` → §5 (MCP 라이브 PASS, 2026-07-24)
+"작성 ≠ 작동" → 스킬 절차를 실제 실행(지시 §4). **견적 경로**도 실동작: 의도"룰러"→FEATURE 분류(§0 판별)·네트워크 프리팹 유·XRI 무·capability-map=✅재조합(M1)·oxr-routing 스폰API=INetSpawn(Core 기존)→기존 `RulerContent` 재사용 판정.
+- **Phase 1(assemble-room 참조):** `copied=True` T_RoomA→AddCompProof_1, `registered address=AddCompProof_1`.
+- **Phase 2(골격):** 5헤더 True / `RoomCore under SYSTEMS=True` / `FEATURES=0 COMPOSITIONS=0` / `Capsule=0` / `--PLAYER_SPAWNER SceneId=4257082749 IsSceneObject=True SceneId-safe=True`.
+- **Phase 3(add-component):** `placed RulerContent under ===== FEATURES =====/Ruler (component=True)` / `wire measurementPrefab -> RulerMeasurement` / `saved=True` / `FEATURES child count=1` / `allFieldsWired=True` / `SceneId-safe=True`(스포너 무손상) / `ADD-COMPONENT: OK`.
+- **Phase 4 §5+§6.5:** `[scenes: QuickStart,MovedObjectsHolder,AddCompProof_1]` / **S2 `Desktop(Clone)` 스폰=True**(SYSTEMS 무손상) / S3 RoomCore=True / **RESULT(A) 자기등록 `ruler -> RulerContent`** / **RESULT(B) SetEnabled 무예외 on/off/double-on + IsEnabled true→True false→False** / **RESULT(C) Meta '룰러'/'측정' 유효** / **`=== §5/§6.5 ADD-COMPONENT VERDICT (FEATURE): PASS ===`** / **Error 0 · Exception 0**.
+- **동형 판정:** add-component로 얹은 Ruler = 손으로 얹은 `PromptSceneRoom_1`의 Ruler와 동형(자기등록·측정 프리팹 배선·토글·Meta). Teardown으로 QuickStart 인메모리 원복.
+
+### 16.5 정직 계약
+- **증명됨(단일 에디터 host QuickTest, MCP 자동판정):** 컴포넌트 배치+§3b 배선, FEATURE 자기등록·토글 무예외·Meta / COMPOSITION 상주·미유출, SYSTEMS 무손상(아바타 스폰), Error 0. 견적 경로(FEATURE/COMPOSITION 분류 + capability 판정 + oxr-routing).
+- **밖(경계):** 기능의 실 동작·미감(사람/비전), 실 포인터이벤트→레이캐스트(주입은 SubmitExternalRay/OnClick 경계), 2클라 파리티(MPPM 큐), 실기기/XRI 손 조작(사람+시뮬), Smart-Deploy. ⛔ 능력(경합 투사체=예측=SYSTEMS 해동)은 짓지 말고 개척 청구서.
+- ⚠ **아직 브랜치 안 가름**(지시 §3): main에 커밋. **다음 = ①`/compose-room` studio판 재작성(assemble-room+add-component 조율, 마이그레이션 큐 다음) ②MPPM 2클라 파리티 ③상위 오케스트레이터.**
+
