@@ -10,6 +10,8 @@
 > 작업 중 막히면 `oxr-docs-routing` 스킬의 라우팅표를 따른다(아래 §6).
 >
 > **최종 갱신:** 2026-07-24.
+>
+> **git 브랜치 분리(2026-07-24):** `main` = studio 하네스(현행). `XRCollabDemo` = 옛 XRCollab 하네스 박제(`@0fc0196`, 첫 studio 스킬 재작성 직전 · 순수 XRCollab). 둘 다 origin push 완료. 플러그인은 하나(main 체크아웃) 유지 — 물리 분리 안 함.
 
 ---
 
