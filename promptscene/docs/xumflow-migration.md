@@ -584,3 +584,29 @@ studio 2번째 프로세스 수단 부재(§10.3 — MPPM/ParrelSync 미설치, 
 - **함정(신규):** ENVIRONMENT의 **Capsule이 최좌측 과녁(x=-3)을 가림** → 그 과녁행 레이캐스트가 Capsule에 먼저 맞음(marker=False). 주입 검증은 **가시(비가림) 과녁을 골라** 쏠 것(4개 중 x=3/-1/1은 명중, x=-3은 가림). 기능 결함 아님(배치 아티팩트).
 - **다음:** ①2클라 파리티(MPPM) — Chat 양방향·Grab 핸드오버·**과녁/점수 동기** 일괄(§11.6). ②DartProps 이식 후 COMPOSITION에 다트 연결. ③스킬(assemble/compose/scaffold) Smart-Deploy 재작성.
 
+---
+
+## 15. `/assemble-room` 스킬 studio판 재작성 (골격 전담) — ✅ 자기검증 PASS (2026-07-24)
+
+> 목표: 손으로 겪은 **골격 조립 절차**(샘플룸 복제 → Content Manager 등록 → 5층 골격 → RoomCore·스포너 → SceneId 안전 재부모 → QuickTest §6.5)를 재현 가능한 스킬로 동결. **골격 전담** — FEATURE/COMPOSITION은 넣지 않음(그건 `add-component` 책임, 경계). 절차 SSOT는 [build-studio-room.md](build-studio-room.md)이고 스킬은 그것을 **감싸기만** 함(복제 금지).
+
+### 15.1 산출물 (`promptscene/skills/assemble-room/`)
+- **SKILL.md** = XRCollab판 재작성. 삭제: exe빌드·Master+Room 서버·Client.unity 조인·MST 매치메이킹·C1~C4 불변식. 대체: 샘플룸 복제·Content Manager(Addressables) 등록·QuickTest(QuickStart host)·studio 불변식(NM=부트씬, RoomCore=InstanceFinder 전역, leaf 주소). EXECUTE는 build-studio-room §1~§4 **참조**.
+- **자산 3종**(구 6종 재작성, `script-execute`용):
+  - `duplicate_and_register.cs` — `AssetDatabase.CopyAsset`(바이트 복사=스포너 SceneId 보존) + Addressables 직접 write(`AddLabel("RoomScene")`→`CreateOrMoveEntry(guid,"Default Local Group")`→`address=leaf`→`SetLabel`). GUI Apply 로그인게이트 우회(로컬 베이스라인 불요).
+  - `build_skeleton.cs` — 4층 헤더(SYSTEMS/ENVIRONMENT/UI/FEATURES) + RoomCore(리플렉션 AddComponent by Type, App.HotUpdate 컴파일 의존 회피) + 베이스 오브젝트 분류(Canvas→UI, 나머지→ENVIRONMENT) + **--PLAYER_SPAWNER SceneId 안전 재부모**(persistent 오픈 씬→SaveScene→SceneId!=0&&IsSceneObject 재확인). **⛔COMPOSITIONS 미생성, FEATURES 빈 폴더**(경계).
+  - `verify_quicktest.cs` — QuickStart host(startAsServer+hostMode+roomSceneKey) SerializedObject 인메모리 세팅(Setup, 디스크 미저장)→§6.5 판정(Check, `<project>/Temp/ps_qt_result.txt` write)→원복(Teardown). 삭제된 XRCollab 자산: `build_room.cs`·`drive_matchmaking.cs`·`run_servers.ps1`·`verify_client.cs`·`verify_scene.cs`·`build_hierarchy.cs`.
+- ⚠ **아직 브랜치 안 가름**: main에 studio판 재작성. XRCollab판 분리는 스킬들+에이전트 완성 후(git 이력에 구판 보존). `compose-room`/`scaffold-content`는 아직 XRCollab 자산 참조 → 이후 마이그레이션 대상(같은 세션 큐).
+
+### 15.2 ⭐ 자기검증 — 스킬로 `AssembleTest_1` 골격 생성 + §6.5 (MCP 라이브 PASS)
+"스킬 작성"과 "스킬 작동"은 다름 → 스킬 절차를 실제 실행해 손으로 만든 결과와 동형인지 확인(지시 §4).
+- **Phase 1**: `copied=True` T_RoomB→AssembleTest_1, `registered address=AssembleTest_1 label=RoomScene group=Default Local Group`.
+- **Phase 2**: `saved=True` / 4헤더 전부 True / `COMPOSITIONS absent=True` / `RoomCore under SYSTEMS=True` / `FEATURES child count=0` / **`spawner=--PLAYER_SPAWNER SceneId=4290510823 IsSceneObject=True SceneId-safe=True`** — SceneId가 손으로 만든 `PromptSceneRoom_1`과 **동일**(4290510823, T_RoomB 유래·바이트복사 보존 실증).
+- **Phase 3 §6.5**: `[scenes: QuickStart,MovedObjectsHolder,AssembleTest_1]` 룸 로드 / **`Desktop(Clone)` 스폰 IsOwner=True 모션rig** / `RoomCore.Instance` 초기화 / `services=[IEventBus,IInteraction,INetSpawn,IRoomUserState]` 4종 / **`registry Contents.All count=0`(빈 레지스트리=골격 경계 준수)** / `=== §6.5 SKELETON VERDICT: PASS ===` / **Error 0**. Teardown으로 QuickStart 인메모리 원복(디스크 미변경).
+- **동형 판정:** 5층 중 4층(SYSTEMS/ENVIRONMENT/UI/FEATURES) + RoomCore + Player/--PLAYER_SPAWNER + 아바타 스폰 = `PromptSceneRoom_1` 골격과 동형. FEATURE 0·COMPOSITION 0 = 경계 준수(add-component 몫).
+
+### 15.3 정직 계약
+- **증명됨:** `/assemble-room <Room>`가 **재현 가능한 골격**(4층·RoomCore·스포너·아바타 스폰·4서비스·빈 레지스트리)을 생성하고 §6.5 host QuickTest로 자기증명. 단일 에디터, MCP 자동판정, Error 0.
+- **밖(경계):** FEATURE/COMPOSITION 추가(=add-component), 2클라 파리티, 실기기/XR, Smart-Deploy 배포.
+- **다음:** `add-component` 에이전트(이 스킬을 부품으로 호출) — FEATURES/COMPOSITIONS 층을 이 골격 위에 얹음.
+
