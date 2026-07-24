@@ -21,7 +21,7 @@ inheritance, separation of concerns.*
 - **COMPOSITIONS — 조율 층 (game modes / scenarios).**
   직교하는 FEATURE 여럿을 하나의 게임 루프로 엮는, **기능들을 "아는" 유일한
   층**. FEATURE 간 직접 의존을 허용하는 대신 조율자를 위에 얹는다(UE5 GameMode
-  / 미디에이터). 있을 때만 존재하고, 빠지면 각 FEATURE는 독립 동작 그대로.
+  / 미디에이터). COMPOSITION **내용**은 수요 있을 때만 존재하고, 빠지면 각 FEATURE는 독립 동작 그대로(빈 `===== COMPOSITIONS =====` **층 폴더**는 골격이 예약 — contract §1 "층의 존재 vs 내용").
   — 도입: [design-directions-2026-07.md](design-directions-2026-07.md) D2.
 
 ```

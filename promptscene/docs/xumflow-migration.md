@@ -344,7 +344,7 @@ PromptSceneRoom_1.unity
 
 **contract §1 정본과의 studio 편차(정당):**
 - **Network 하위폴더 없음** — `NetworkManager`는 **부트 씬(QuickStart/T_Master)** 소재(Addressables 모델). 룸 씬에 Network 층 불요. RoomCore는 `InstanceFinder` 전역 접근.
-- **COMPOSITIONS 층 없음** — 컴포지션 부재 시 미생성(contract §1 "있을 때만 존재"·"수요 없는 층 금지" launchpad/D2 교훈).
+- **COMPOSITIONS 층 없음** — 이 관통(2026-07-23) 시점의 손작업 룸엔 컴포지션이 없어 미생성했다. ⚠ **후속 확정(§15, 2026-07-24):** `/assemble-room` 골격은 이제 빈 COMPOSITIONS 층을 **항상 예약**한다(contract §1 "층의 존재 vs 내용" — 빈 폴더는 추측이 아니므로 launchpad/D2 원칙 준수). 이 줄은 관통 당시의 실측 기록.
 - **_DYNAMIC 없음** — 런타임 생성물(아바타 Clone, RulerMeasurement(Clone))은 play 중에만 등장(에디터 정적 씬엔 없음).
 
 **⚠ SceneId 안전 검증 결과 (신규 실측 — 조립 스킬 필수):**
@@ -596,7 +596,8 @@ studio 2번째 프로세스 수단 부재(§10.3 — MPPM/ParrelSync 미설치, 
   - `duplicate_and_register.cs` — `AssetDatabase.CopyAsset`(바이트 복사=스포너 SceneId 보존) + Addressables 직접 write(`AddLabel("RoomScene")`→`CreateOrMoveEntry(guid,"Default Local Group")`→`address=leaf`→`SetLabel`). GUI Apply 로그인게이트 우회(로컬 베이스라인 불요).
   - `build_skeleton.cs` — **5층 헤더(SYSTEMS/ENVIRONMENT/UI/FEATURES/COMPOSITIONS)** + RoomCore(리플렉션 AddComponent by Type, App.HotUpdate 컴파일 의존 회피) + 베이스 오브젝트 분류(Canvas→UI, 나머지→ENVIRONMENT) + **--PLAYER_SPAWNER SceneId 안전 재부모**(persistent 오픈 씬→SaveScene→SceneId!=0&&IsSceneObject 재확인). **FEATURES+COMPOSITIONS는 빈 층 폴더까지만**(콘텐츠=add-component 경계).
   - `verify_quicktest.cs` — QuickStart host(startAsServer+hostMode+roomSceneKey) SerializedObject 인메모리 세팅(Setup, 디스크 미저장)→§6.5 판정(Check, `<project>/Temp/ps_qt_result.txt` write)→원복(Teardown). 삭제된 XRCollab 자산: `build_room.cs`·`drive_matchmaking.cs`·`run_servers.ps1`·`verify_client.cs`·`verify_scene.cs`·`build_hierarchy.cs`.
-- **기본값(사용자 지시 2026-07-24):** 기본 룸명=`AssembleRoom`, 기본 베이스=**`T_RoomA`**(ENVIRONMENT에 장식 Capsule 없음 — `T_RoomB`엔 있고 §14.3 가림 함정). **골격에 빈 `===== COMPOSITIONS =====` 층 포함**(사용자 지시로 최초 §15 "COMPOSITIONS 미생성" 결정 번복 — 골격이 빈 층 폴더까지 깔아 두고 콘텐츠는 add-component가 채움. contract §1 "있을 때만 존재" 원칙과의 편차는 이 스킬 한정, 사용자 결정).
+- **기본값(사용자 지시 2026-07-24):** 기본 룸명=`AssembleRoom`, 기본 베이스=**`T_RoomA`**(ENVIRONMENT에 장식 Capsule 없음 — `T_RoomB`엔 있고 §14.3 가림 함정). **골격에 빈 `===== COMPOSITIONS =====` 층 포함.**
+- **⭐ "골격=5층 예약 / 채움=수요 시" 규칙 확정 + contract §1 정식 반영(2026-07-24, 옵션 A):** 초기 §15는 "COMPOSITIONS 미생성"이었으나 사용자 판단으로 **골격이 빈 COMPOSITIONS 폴더까지 예약**하는 것으로 확정. 근거: launchpad/D2 교훈("수요 없는 추상화 금지")의 실제 위험은 *안 겪은 기능의 인터페이스/코드 추측*이지 *빈 층 폴더의 유무*가 아니다 — 빈 폴더는 코드도 계약도 만들지 않으므로 추측이 없다. 따라서 **편차가 아니라 원칙 준수**. 이 규칙을 [contract §1](promptscene-content-contract.md) "층의 존재 vs 내용"으로 승격(트리 주석·규칙 bullet·studio 편차·[build-studio-room §3](build-studio-room.md) 동시 갱신) → 문서·스킬 일치, 다음 세션 혼선 제거. 채움(FEATURE의 IToggleableContent, COMPOSITION MonoBehaviour·프리팹)은 여전히 수요 시 `add-component` 몫.
 - ⚠ **아직 브랜치 안 가름**: main에 studio판 재작성. XRCollab판 분리는 스킬들+에이전트 완성 후(git 이력에 구판 보존). `compose-room`/`scaffold-content`는 아직 XRCollab 자산 참조 → 이후 마이그레이션 대상(같은 세션 큐).
 
 ### 15.2 ⭐ 자기검증 — 스킬로 `AssembleRoom` 골격 생성 + §6.5 (MCP 라이브 PASS, 2회: AssembleTest_1[초안] → AssembleRoom[사용자 기본값])

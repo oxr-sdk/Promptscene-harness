@@ -42,7 +42,7 @@
 
 ## 3. 씬 계층 (5층) + ⚠ SceneId 재부모 안전절차
 
-목표 계층(contract §1): `===== SYSTEMS / ENVIRONMENT / UI / FEATURES =====` (+ COMPOSITIONS는 **컴포지션 있을 때만**, _DYNAMIC은 런타임만). studio 실측 편차: **Network 하위폴더 없음**(NM=부트씬), COMPOSITIONS 미생성, _DYNAMIC=런타임.
+목표 계층(contract §1): `===== SYSTEMS / ENVIRONMENT / UI / FEATURES / COMPOSITIONS =====`. **골격은 다섯 층을 모두 빈 폴더로 예약**(contract §1 "층의 존재 vs 내용" 규칙 — `/assemble-room`가 FEATURES·COMPOSITIONS를 빈 채로 항상 생성, 내용은 수요 시 add-component). studio 실측 편차: **Network 하위폴더 없음**(NM=부트씬), **_DYNAMIC=런타임만**(런타임 생성물 전용이라 정적 골격엔 없음). ⚠ 손으로 만든 PromptSceneRoom_1은 처음엔 COMPOSITIONS를 안 만들었으나(§9 시점), 이 규칙 확정(2026-07-24) 후 골격은 빈 COMPOSITIONS를 예약한다.
 
 - **비-네트워크 오브젝트**(Light/Plane/Canvas 등) 재부모: SceneId 무관 → 일괄 이동 후 QuickTest 1회.
 - **⚠ FishNet 씬 네트워크 오브젝트**(`--PLAYER_SPAWNER`) 재부모(예: SYSTEMS/Player로): SceneId 재생성 위험. **안전 4단계:**

@@ -47,7 +47,7 @@
 │   ├── Ruler                  RulerContent (IToggleableContent)
 │   ├── TargetProps            TargetProps (IToggleableContent) — 클릭 과녁, TargetHitEvent 발행
 │   └── ScoreHud               ScoreHud (IToggleableContent) — ScoreChangedEvent 구독·표시
-├── ===== COMPOSITIONS =====   ← Game modes. 선택. FEATURE들을 아는 유일한 층 (있을 때만 존재).
+├── ===== COMPOSITIONS =====   ← Game modes. FEATURE들을 아는 유일한 층. 층 폴더는 골격이 예약(빈 채로), 내용(COMPOSITION)은 수요 시.
 │   └── TargetShootoutMatch    TargetShootoutMatch (MonoBehaviour) — 과녁→점수→승자→리셋 조율
 └── ===== _DYNAMIC =====       런타임 생성물 (아바타 Clone, RulerMeasurement, MatchView, Target 등)
 ```
@@ -57,10 +57,11 @@
 - **FEATURE는 다른 FEATURE를 참조하지 않는다.** 상호작용이 필요하면 `IEventBus`(§2)로 이벤트를 주고받고, 그 조율은 `===== COMPOSITIONS =====`의 게임모드가 맡는다. 신규 검증 신호: 파일럿 두 FEATURE 소스에 **상대 타입 참조 0**(grep). — COMPOSITIONS 층 도입: [design-directions-2026-07.md](design-directions-2026-07.md) D2.
 - **COMPOSITION은 조율 대상 FEATURE의 이벤트 타입은 알아도(허용 방향), 어떤 FEATURE가 룸에 있는지는 런타임 레지스트리(`Contents.GetById`)로만 확인**해 부재 시에도 안 깨진다. COMPOSITION이 빠지면 각 FEATURE는 그대로 독립 동작(이벤트를 아무도 안 들을 뿐).
 - FEATURE 모듈은 `===== FEATURES =====` 아래에 통째로 들어오며, 빠지면 SYSTEMS에 참조가 0개 → 빌드/런타임 안 깨짐. COMPOSITION도 `===== COMPOSITIONS =====` 아래에 통째로 들어오고 빠질 수 있다.
+- **⭐ 층의 존재 vs 내용 (골격 예약 규칙 — 2026-07-24 확정):** 씬 계층의 다섯 층(SYSTEMS/ENVIRONMENT/UI/FEATURES/COMPOSITIONS)은 **골격이 모두 빈 폴더로 예약**한다(`/assemble-room`가 항상 5층 헤더 생성). 층의 **내용**(FEATURE의 `IToggleableContent`, COMPOSITION MonoBehaviour·프리팹)은 **수요가 있을 때 `add-component`가 채운다**. 빈 `===== FEATURES =====`·`===== COMPOSITIONS =====` 폴더를 미리 두는 것은 launchpad/D2 교훈("수요 없는 추상화 금지")에 **위배되지 않는다** — 그 교훈의 실제 위험은 *아직 안 겪은 기능의 인터페이스/코드를 추측해 만드는 것*이지 *빈 층 폴더의 유무*가 아니다. 빈 폴더는 코드도 계약도 만들지 않으므로 추측이 없다. 따라서 규칙은 **골격=5층 예약, 채움=수요 시**. (studio 변형: `_DYNAMIC`은 런타임 생성물 전용이라 정적 골격엔 없고, Network 하위폴더는 부트 씬 소재 — 아래 studio 편차 참조.)
 - 횡단 작업(스케일 변경 시 정리 등)은 SYSTEMS가 레지스트리를 순회해 처리. 기능 추가 시 SYSTEMS 코드 수정 0.
 - ⚠️ FishNet **씬 네트워크 오브젝트**(R-RoomServer, --PLAYER_SPAWNER)를 재배치하면 씬오브젝트 ID가 바뀐다 → 네트워크 빌드(Room.exe) 재빌드 필요.
 - ⚠️ **스크립트 단발 빌드는 FishNet SceneId를 자동 할당하지 못한다** (2026-07-13 발견). 한 번의 `script-execute` 안에서 `NewScene`→오브젝트 배치→`SaveScene`을 끝내면, FishNet의 자동 SceneId 생성 훅(`EditorSceneManager.sceneSaving`)이 **비결정적으로 건너뛰어져** 스포너 NetworkObject가 `SceneId=0 / IsSceneObject=false`로 저장될 수 있다. 증상이 **조용하다**: 룸 입장·로비 소멸(C3)·스포너 복제까지 정상인데 **아바타(Desktop(Clone))만 스폰되지 않는다**(전용 서버가 SceneId 없는 스포너로 플레이어를 못 띄움). "become a player" 로그는 MST 레벨이라 떠도 FishNet 스폰은 실패. **해법**: 저장 직전에 `Tools/Fish-Networking/Utility/Reserialize NetworkObjects`가 하는 일을 코드로 재현 — `NetworkObject.CreateSceneId(scene, force:true, out changed)` + 각 nob에 `ReserializeEditorSetValues(true,false)`(둘 다 `internal`→리플렉션) 후 `SaveScene`. 검증: 재오픈해서 스포너 `IsSceneObject==true`. compose-room의 `build_composed_room.cs`(`AssignFishNetSceneIds`)와 scaffold-content의 `build_feature_room.cs`에 반영됨. (assemble-room처럼 여러 `script-execute`에 걸쳐 씬을 열어두고 저장하는 흐름은 훅이 붙을 틈이 있어 우연히 통과하기도 했다 — 그래서 함정.)
-- 🔀 **studio(XumFlow) 변형(2026-07-23 실측)**: 같은 5층을 studio 샘플룸 위에서도 성립시켰다(`PromptSceneRoom_1`). 편차: **Network 하위폴더 없음**(NetworkManager=부트 씬, Addressables 모델 — RoomCore는 `InstanceFinder` 전역 접근), **COMPOSITIONS 미생성**(컴포지션 부재), **_DYNAMIC=런타임만**. FishNet 씬 오브젝트(--PLAYER_SPAWNER) 재부모는 **persistent 오픈 씬+SaveScene(훅 발화)+SceneId!=0/IsSceneObject 재확인+QuickTest** 4단계면 SceneId 보존(아래 SceneId=0 함정과 별개 경로). 실측 하이어라키·근거: [xumflow-migration.md](xumflow-migration.md) §9 "구조 정리".
+- 🔀 **studio(XumFlow) 변형(2026-07-23 실측)**: 같은 5층을 studio 샘플룸 위에서도 성립시켰다(`PromptSceneRoom_1`). 편차: **Network 하위폴더 없음**(NetworkManager=부트 씬, Addressables 모델 — RoomCore는 `InstanceFinder` 전역 접근), **_DYNAMIC=런타임만**(런타임 생성물 전용). FishNet 씬 오브젝트(--PLAYER_SPAWNER) 재부모는 **persistent 오픈 씬+SaveScene(훅 발화)+SceneId!=0/IsSceneObject 재확인+QuickTest** 4단계면 SceneId 보존(아래 SceneId=0 함정과 별개 경로). 실측 하이어라키·근거: [xumflow-migration.md](xumflow-migration.md) §9 "구조 정리". (COMPOSITIONS 층: 손으로 만든 PromptSceneRoom_1은 처음엔 미생성했으나 이후 [§14]에서 채웠고, `/assemble-room` 골격은 **위 "층의 존재 vs 내용" 규칙대로 빈 COMPOSITIONS 폴더를 항상 예약** — [xumflow-migration.md](xumflow-migration.md) §15.)
 - ⚠️ **VR 클라 주의**: `ENVIRONMENT`의 `Main Camera`는 데스크톱/에디터 검증용이다. **VR 클라(Quest)에선 유지되는 XR 리그 카메라와 충돌**해 화면 깜빡임+시점 고정을 유발한다("2 audio listeners" 경고 동반). 룸 씬의 Main Camera(Camera+AudioListener)를 **비활성화하고 태그를 Untagged**로 두면 `Camera.main`이 XR 리그로 잡힌다. ☞ `build-meta-client.md` §2.4-D
 
 ---
