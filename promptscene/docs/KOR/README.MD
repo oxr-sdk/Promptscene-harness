@@ -71,6 +71,12 @@ claude --plugin-dir .
 
 순서대로: **먼저 룸 골격을 조립**하고, 그 위에 **컴포넌트를 얹습니다**.
 
+### 데모
+
+[**▶ `/promptscene:add-component` 전체 실행**](../videos/screencast-2026-07-27-8x.mp4) · 2분 · 8배속 · 무음
+
+XumFlow:studio에서의 실제 화면 녹화입니다. `AssembleRoom`이라는 룸에 채팅 기능(메타 시스템 키보드 연동 포함)을 얹는 사이클 전체 — 프롬프트, 슬라이스별 구현 가능성 등급 판정, VR 채팅면 작성, `FEATURES` 층 배치, Play 모드 라이브 QuickTest, 마지막 사람에게 넘기는 지점 — 을 담았습니다.
+
 ---
 
 ## 더 알아보기

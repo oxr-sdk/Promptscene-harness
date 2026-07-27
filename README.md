@@ -69,6 +69,12 @@ Skills are invoked with the plugin namespace: `/promptscene:<skill>`.
 
 Run them in order: **assemble a room skeleton first**, then **add components** onto it.
 
+### Demo
+
+[**▶ `/promptscene:add-component` — a full run**](promptscene/docs/videos/screencast-2026-07-27-8x.mp4) · 2 min · 8× speed · no audio
+
+A screen recording of the whole cycle in XumFlow:studio: putting a chat feature — including a Meta system-keyboard binding — onto a room called `AssembleRoom`. It covers the prompt, the slice-by-slice buildability grading, authoring the VR chat surface, placing it under `FEATURES`, the live QuickTest in Play mode, and the closing handoff back to the human.
+
 ---
 
 ## Learn More
