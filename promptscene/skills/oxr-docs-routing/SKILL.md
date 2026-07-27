@@ -21,9 +21,21 @@ description: >
 1. **문서는 지도, 소스는 진실.** 플랫폼 API(XumNet 등)를 코드에 쓰기 전에 **반드시 PackageCache의 실제 소스에서 시그니처를 확인**한다. 공식 GitBook 예시 코드에 문법 오류·오타가 확인된 바 있으므로(예: Object Management 페이지의 `XumView.RPC` 예시), 문서 코드를 그대로 복붙하는 것을 금지한다.
 2. **원본만 읽는다 (SSOT).** 문서 내용을 다른 파일로 요약·복사해 두지 않는다. 요약본은 낡는다.
 3. **PackageCache는 읽기 전용.** `Library/PackageCache/` 하위와 `Packages/manifest.json`은 절대 수정하지 않는다 (PreToolUse 훅이 기계적으로 차단하지만, 우회 시도 자체를 하지 말 것). 로컬/임베디드 패키지(`Packages/` 하위)도 수정 금지.
-4. **GitHub 원격 접근 시도 금지.** `oxr-sdk` 조직 레포들은 private이다. clone/fetch를 시도하지 말 것 — 필요한 내용은 전부 로컬 PackageCache에 이미 있다.
+4. **GitHub 원격 접근은 인증된 `gh`로 지정 경로만.** `oxr-sdk` 조직 레포들은 **private**이다 — 익명 접근(anonymous clone/fetch/WebFetch)은 안 되고 시도하지 말 것. 단, 로컬 `gh` CLI가 org 인증(`repo` 스코프)돼 있으면 **아래 §1에 지정된 문서 경로에 한해** `gh api`(GET)로 원문을 읽을 수 있다(레시피는 §1). 쓰기(`-X POST/PATCH/DELETE`)·clone·타 경로 무단 접근은 금지. **버전 스큐 주의:** GitHub은 `@main`/`@studio` 최신, 로컬 PackageCache는 핀된 버전이라 어긋날 수 있으므로 GitHub 문서는 **지도로만** 쓰고 **시그니처의 진실은 로컬 PackageCache 소스(3층)에서 재검증**한다(대원칙 1).
 
 ## 1. 참조 소스 4계층 (우선순위 순)
+
+> **온라인 원본(GitHub, 인증 `gh`) 레시피.** private 레포라 WebFetch 불가 — `gh api`로만 읽는다.
+> 디렉터리 목록: `gh api "repos/oxr-sdk/<REPO>/contents/<PATH>?ref=<BRANCH>" --jq '.[].name'`
+> 파일 원문: `gh api "repos/oxr-sdk/<REPO>/contents/<PATH>/<FILE>?ref=<BRANCH>" --jq '.content' | base64 -d`
+> (경로에 `~`가 있으면 그대로 URL에 넣는다, 예: `Documentation~/ai`.) 지정된 레포·경로만 접근하고,
+> 시그니처는 반드시 3층 로컬 소스에서 재검증한다(§0 대원칙 4).
+
+| 온라인 원본 (gh, 참조 전용) | 담당 |
+|---|---|
+| `oxr-sdk/XumFlow` @`studio` `Docs/` | 공식 studio 절차 문서 (phase0~6: overview/setup/scene-authoring/quick-test/room-build/upload/extras) — 1층 harness 문서의 업스트림 원본 |
+| `oxr-sdk/UnifiedXRMotion` @`main` `docs/skills/` | UXM 스킬 문서 (common/desktop/meta/network-integration/troubleshoot/unity-xr/visionos) — 2층 UnifiedXRMotion의 온라인 최신본 |
+| `oxr-sdk/XumNet` @`main` `Documentation~/ai/` | XumNet AI 문서(recipes) — 2층 XumNet의 온라인 최신본 |
 
 ### 1층 — harness 검증 문서 (함정·불변식·검증된 절차) — `<PLUGIN>/docs/`
 
@@ -35,7 +47,7 @@ description: >
 | `capability-map.md` | 재조합 ✅ vs 개척 ⛔ — 컴포넌트 구현 가능성 판단 |
 | `promptscene-launchpad-attempt.md` | 런치패드/ContentMeta 관련 작업 전 회고 확인 |
 
-여기 있는 함정 지식(예: FishNet 씬 네트워크 오브젝트 재배치 → Room.exe 재빌드)은 아래 어느 소스에도 없다. **플랫폼 문서보다 이 층을 먼저 본다.**
+여기 있는 함정 지식(예: FishNet 씬 네트워크 오브젝트 재배치 → Room.exe 재빌드)은 아래 어느 소스에도 없다. **플랫폼 문서보다 이 층을 먼저 본다.** 공식 studio 절차 원본이 필요하면 온라인 `oxr-sdk/XumFlow` @`studio` `Docs/`(위 gh 레시피)를 지도로 보되, 함정·불변식은 이 검증 층이 우선이다.
 
 ### 2층 — PackageCache 패키지 문서 (로컬, 네트워크 불필요)
 
