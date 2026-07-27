@@ -4,14 +4,17 @@ description: >
   Put a user-intended COMPONENT (a FEATURE or a COMPOSITION) onto a RoomCore-bearing PromptScene room in the
   XumFlow **studio** project and LIVE-PROVE it with a QuickTest (contract §5 + §6.5). This is the studio
   content-adder: it (1) CONSULTS — classifies the intent as FEATURE vs COMPOSITION vs UXRM (a UnifiedXRMotion
-  motion/avatar/retargeting preset — its own uxrm-* tool path, §5 registry checks N/A), judges buildability against
-  the capability map (재조합 ✅ vs 개척 ⛔), and routes "how to attach" through oxr-docs-routing, promising only
+  motion/avatar/retargeting preset — its own uxrm-* tool path, §5 registry checks N/A), grades buildability per
+  SLICE against the capability map in 3 grades (재조합 ✅ / 코드-대체 ⚠ = build it in code / 개척 ⛔ = only human
+  aesthetics, owner sign-off, or absent infra), and routes "how to attach" through oxr-docs-routing, promising only
   what §5 can prove; (2) picks the room (or reference-calls /assemble-room to lay a fresh 5-layer skeleton first);
   (3) gets the component — reuse an already-ported type, AI-generate a FEATURE from the frozen Ruler template, or
   wire a human-written script; (4) places it under the right layer (FEATURES / COMPOSITIONS), wires its scene-embed
   prefab fields (§3b) and registers any new network prefab (C1); (5) QuickTest-proves §5 (FEATURE self-registers +
   SetEnabled exception-free + Meta valid ; COMPOSITION scene-resident + NOT registered) AND §6.5 (avatar still
-  spawns = SYSTEMS unbroken); (6) optionally reference-calls /cross-platform-ui to lay a pointing UI. It absorbed
+  spawns = SYSTEMS unbroken); (6) optionally reference-calls /cross-platform-ui to lay a pointing UI, then ALWAYS
+  asks the human whether they want to drive it in the UI themselves (Phase 6 handoff — leaves the room in Play with
+  an operating recipe). It absorbed
   scaffold-content's studio role (see the retrospective-B note). Reference-calls /assemble-room, /cross-platform-ui,
   oxr-docs-routing — never duplicates their procedures. Use when the user wants to add a capability to a room, e.g.
   "룰러 붙여줘", "add a click-spawner to MyRoom", "/add-component a chat feature". Argument = the component request
@@ -96,16 +99,19 @@ reference-call **assemble-room (skeleton) + add-component (content)**.
   exception-free + `IsEnabled` tracks + `Meta` valid; **COMPOSITION** is scene-resident and did **not** leak into
   the registry; network prefabs spawn `IsSpawned=True` (spawn-once); SYSTEMS unbroken (avatar spawns); Error 0.
 - ❌ **Does NOT prove** the component *does what the prose intended*, nor that it looks good — behavioural
-  correctness and aesthetics need a human/vision loop. **Ray injection caveat:** the agent injects at the
-  `SubmitExternalRay`/reflected-`OnClick` boundary, **not** a real OS pointer-event → raycast. **Out of scope:**
-  2-client parity (MPPM queue), real-device / XRI hand manipulation (human + simulator), Smart-Deploy.
+  correctness and aesthetics need a human/vision loop, **so hand it to the human: Phase 6 is a mandatory ask, not a
+  disclaimer.** **Ray injection caveat:** the agent injects at the `SubmitExternalRay`/reflected-`OnClick` boundary,
+  **not** a real OS pointer-event → raycast. **Out of scope:** 2-client parity (MPPM queue), real-device / XRI hand
+  manipulation (human + simulator), Smart-Deploy.
 - **UXRM (retrospective A′) is a routed addition, not a frozen loop.** It proves only a **bound RetargetSystem**
   (`uxrm-describe-scene` `MotionAvatarPath` non-null + bind `Success=true`) + SYSTEMS-unbroken + Error 0. It does
   **not** prove runtime motion fidelity, nor that an edit-time bind survives the runtime FishNet avatar spawn — that
   bind-target question must be resolved via oxr-docs-routing first (Phase 2U step 0).
-- **Promise only what §5 can keep.** If the ask is a `⛔` capability (capability-map.md — e.g. contested projectile
-  = client-side prediction = SYSTEMS thaw, grade "개척"), do **not** silently build a broken stand-in: say what
-  blocks it, record a 개척 청구서 (pioneering invoice), and stop for the user.
+- **Promise only what §5 can keep — but build everything code can reach (Phase 0 step 2).** A `⛔` grade is reserved
+  for the three real gates (human aesthetics / platform-owner sign-off / absent infrastructure). A missing asset, a
+  missing public setter, or "nobody did this yet" is **⚠ 코드-대체 → build it in code**, label it as a substitute,
+  and carry the gap out as a 추천사항. The 개척 청구서 now covers the **residual** slices only — never a whole
+  request that had a buildable slice in it. Do not silently build a stand-in you know to be broken.
 
 ## Ground rules
 - studio MCP (`ai-game-developer`) must be connected. Drive Unity via MCP; do not hand-edit `.unity`.
@@ -133,13 +139,33 @@ reference-call **assemble-room (skeleton) + add-component (content)**.
    (→ **COMPOSITION**) or is it a single opt-in capability (→ **FEATURE**)? **Or** is it avatar/humanoid
    **motion / retargeting / IK / a UnifiedXRMotion preset** (→ **UXRM** — retrospective A′, its own tool path, §5
    A/B/C N/A)? Is a **network prefab** involved (shared/spawned result)? Is **XRI** involved (grab/throw)?
-2. **Judge buildability** against `${CLAUDE_PLUGIN_ROOT}/docs/capability-map.md`: is this a **재조합** (✅, a
-   recombination of verified machines) or a **⛔ 개척** (needs new SYSTEMS/prediction/etc.)? If ⛔ → state the
-   blocker, record a 개척 청구서, and **stop for the user** — do not build a silently-broken stand-in.
+2. **Slice the request, then judge each slice — 3 grades, not 2** (2026-07-27 개척 완화 결정; grading a whole
+   request ⛔ in one lump is forbidden). Against `${CLAUDE_PLUGIN_ROOT}/docs/capability-map.md`:
+   - ✅ **재조합** — verified machines recombined → build normally.
+   - ⚠ **코드-대체 (code-reachable)** — the map/scout says *"the asset doesn't exist" / "there's no public setter" /
+     "nobody has done this yet"*, **but code can reach it without a human creating anything and without editing
+     SYSTEMS**: generate the asset procedurally from an editor script (`AnimationClip` + `AnimationCurve`, mesh,
+     material, curve-authored pose), reflect over a private platform field at runtime, or implement a **content-side
+     substitute** for the missing platform component. → **BUILD IT.** This is now the default for anything Claude
+     Code can reach with code. **Missing asset ≠ ⛔.**
+   - ⛔ **개척** — exactly three gates, nothing else: **(a)** a human's aesthetic/creative judgment that code cannot
+     stand in for at all, **(b)** a platform-owner decision (§4.5 승격 / SYSTEMS 해동 / PackageCache 변경),
+     **(c)** absent infrastructure (client-side prediction, 3+ client harness, real device).
+   Before grading any slice **⛔(b)**, you must first hunt for a **content-side path that leaves SYSTEMS untouched** —
+   runtime lookup of the spawned object (`GameObject.Find`/`Contents.GetById`/scene walk) + **FEATURE-owned** network
+   state (its own `NetworkObject` prefab carrying the `SyncVar`/`[XumRPC]`), instead of reaching into the avatar or
+   spawner prefab. Prefab reach-in is the **last resort, not the first blocker**.
+2b. **Honesty under the relaxation (완화 ≠ 과장).** A code substitute ships **labelled as one** ("procedurally
+   authored seated pose, not an artist clip"; "private buffer written by reflection — fragile across package
+   upgrades"). Claim only what §5 proves, and carry the quality/fragility delta out as a **추천사항** in the report,
+   not as a refusal. Never pass a code substitute off as the real thing, and never ship a stand-in that is *known
+   broken* — a substitute must actually work at the level you claim.
 3. **Route "how to attach"** through **oxr-docs-routing** (platform API = source is truth). If a new platform API /
    signature is needed, delegate to the **oxr-source-scout** agent for the ground-truth signature before writing code.
-4. **Report the estimate**, ask only at genuine forks (propose the default): which room? create the component
-   (AI-generate / human-writes) or reuse an existing type? Promise only what §5 can prove.
+4. **Report the estimate** as a **per-slice ✅/⚠/⛔ table** with the one-line code-substitute plan for every ⚠ slice.
+   Ask only at genuine forks (propose the default): which room? create the component (AI-generate / human-writes) or
+   reuse an existing type? Promise only what §5 can prove. **Stopping with nothing built is a failure** unless every
+   slice landed on ⛔(a)/(b)/(c) — then, and only then, return the 개척 청구서 instead of a build.
 
 ### Phase 1 — Room (reference-call /assemble-room only if none)
 If the user named a room that already has a RoomCore + the empty 5-layer skeleton, use it (skip). Otherwise
@@ -207,6 +233,22 @@ If the user wants to drive the component by pointing, **ask** which mode and ref
 toggleable FEATURE) — no room hardcoding. ⚠ Real XRI manipulation is a **human** (simulator) judgment; the agent
 proves the onClick→SetEnabled path + `SubmitExternalRay` injection only.
 
+### Phase 6 — 사람 루프 핸드오프 (MANDATORY ASK — before the report, not instead of it)
+§5 PASS proves **structure**; it never proves the thing *feels* right. Behaviour + aesthetics are the human's call, so
+the procedure must **hand the live room over**, not merely disclaim it. Ask, verbatim in the user's language:
+**"직접 UI로 테스트해보시겠어요?"** — three options, **default A**:
+
+| | What you do | When |
+|---|---|---|
+| **A. 지금 몰아보기** (default) | **Skip Phase 4 step 5** (`isPlaying = false`) and skip the Cleanup Play-exit — leave the editor **in Play** and hand over a **조작 레시피**: which keys move (WASD + mouse look), what to click/point at, which HUD button toggles the FEATURE, the XR Simulator keys if PCXR, and **the exact signal to look for with your eyes** ("의자 근처로 걸어가 E — 몸이 앉은 자세로 바뀌는지"). | 사람이 지금 붙어 있을 때 |
+| **B. 직접 열어둘게** | Exit Play, run Teardown, then `scene-open Assets/App/Scenes/<Room>.unity` **Single** and leave it open so the user presses Play when they want. Give the same recipe. | 나중에 볼 때 / 씬을 손보고 싶을 때 |
+| **C. 안 함** | Normal Cleanup. Report only. | 구조 검증만 필요할 때 |
+
+⚠ Traps for A/B: (1) `Teardown` has **not** run in option A — tell the user **"QuickStart는 저장하지 마세요"**
+(disk is still clean; an in-memory-modified QuickStart must not be saved), and that the next QuickTest run needs
+Teardown / a scene reload first. (2) Never `scene-save QuickStart.unity` in either option.
+(3) Report what the human observed (or that they deferred) — do **not** upgrade their silence into a PASS.
+
 ---
 
 ## VERIFY — acceptance (all must pass; KIND-branched)
@@ -223,6 +265,8 @@ proves the onClick→SetEnabled path + `SubmitExternalRay` injection only.
 | A (UXRM) | `uxrm-describe-scene`: the placed `RetargetSystem` has `MotionAvatarPath` **non-null** (bound) | uxrm-describe-scene |
 | B (UXRM) | `uxrm-bind-avatar` returned `Success=true`, `Warnings` empty | bind-avatar result |
 | C (UXRM) | §5 A/B/C registry checks **N/A** (never self-registers); SYSTEMS unbroken + Error 0 still required | QuickTest §6.5 |
+| H1 | **Phase 6 asked** ("직접 UI로 테스트해보시겠어요?") and the chosen option honoured (A = left in Play + recipe) | the report itself |
+| H2 | Every ⚠ 코드-대체 slice is **labelled as a substitute** in the report + has a 추천사항 line | the report itself |
 | — | `=== §5/§6.5 ADD-COMPONENT VERDICT (<KIND>): PASS ===` | result file (FEATURE/COMPOSITION) |
 
 Failure map: `NOT FOUND` (FEATURE) → RoomCore missing / not under FEATURES / didn't compile. `SetEnabled … THREW` →
@@ -231,11 +275,21 @@ IRoomContent (make it a plain MonoBehaviour). Avatar missing but room loaded →
 spawner — build-studio-room §3). `_wired=False` for XRI → read it one tick later (§11.4).
 
 ## Cleanup
-Exit Play if running; delete `Temp/ps_addcomp_*.txt`. Leave the placed component, wired room, any authored `.cs` /
-prefab, and C1 registration in place.
+Exit Play if running — **unless Phase 6 option A was chosen** (then leave Play up and say so). Delete
+`Temp/ps_addcomp_*.txt`. Leave the placed component, wired room, any authored `.cs` / prefab, and C1 registration in
+place.
 
 ## Report
 Give the VERIFY table with actual result-file values and state PASS/FAIL plainly. State the KIND (FEATURE/COMPOSITION),
-which source produced it (reuse / AI-gen / human-written), and restate the honesty contract: **structure/contract
-proven via single-editor host QuickTest; behaviour/aesthetics, 2-client parity, real-device XRI, and deploy are
-out of scope.** If Phase 0 hit a ⛔ capability, report the 개척 청구서 instead of a build.
+which source produced it (reuse / AI-gen / human-written / **코드-대체**), and restate the honesty contract:
+**structure/contract proven via single-editor host QuickTest; behaviour/aesthetics, 2-client parity, real-device XRI,
+and deploy are out of scope.** Then, always:
+- **추천사항** — for every ⚠ 코드-대체 slice shipped: what it is a substitute *for*, and what upgrading it takes
+  (an artist clip instead of the procedural one, a package setter instead of reflection, …). These are
+  recommendations, not blockers.
+- **잔여 개척 청구서** — only the slices that landed on ⛔(a) human aesthetics / (b) owner sign-off / (c) absent
+  infra, each with which gate and what would open it. Record it under `promptscene/docs/<topic>-invoice.md`.
+- **Phase 6 결과** — which handoff option the user picked, and (for A/B) the 조작 레시피 you handed over plus the
+  "QuickStart 저장 금지" warning.
+
+A report with a 청구서 and **no build** is only valid when *every* slice hit ⛔(a)/(b)/(c).
