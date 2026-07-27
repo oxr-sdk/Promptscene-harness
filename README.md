@@ -1,15 +1,24 @@
 # promptscene-harness
 
-A Claude Code plugin for **synthesizing and verifying rooms from natural-language prompts** in XRCollabDemo. It's a bundle of validated docs (the spec) and skills; the Unity project itself (`XRCollabDemo`) is **not** included in this repo (bring your own).
+A Claude Code plugin for **synthesizing and verifying rooms from natural-language prompts** in **XumFlow:studio**. It's a bundle of validated docs (the spec) and skills; the Unity project itself is **not** included in this repo (bring your own).
 
 ---
 
 ## Requirements
 
 - **Claude Code** — the CLI/IDE agent (not claude.ai), with plugin support.
-- **XRCollabDemo** — a local Unity project, **Unity 6** (verified on `6000.3.11f1`). The skills drive it as their target.
-- **`ai-game-developer` MCP server** — connected to the running Unity Editor. The skills operate the Editor through it (scene build, play mode, reflection checks), so it must be live before you run a skill.
-- **For device deploys (`deploy-client`)** — Unity **Android Build Support** (NDK/SDK/OpenJDK/IL2CPP) + `adb` for Quest/XReal. VisionOS additionally needs macOS + Xcode + PolySpatial.
+- **XumFlow:studio** — a local Unity content-authoring project, **Unity 6** (verified on `6000.3.11f1`). The skills drive it as their target.
+- **A Unity MCP server** — connected to the running Unity Editor. The skills operate the Editor through it (scene build, play mode, reflection checks), so it must be live before you run a skill. Any Unity MCP server works; the choice below is what we actually use.
+
+### Unity MCP server
+
+We use and have live-verified **[IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP)** ⭐ (`com.ivanmurzak.unity.mcp`).
+
+> **Version pin (required for IvanMurzak/Unity-MCP):** pin to **`0.66.0`**. studio's UnifiedXRMotion 1.8.5 MCP adapter references `…Runtime.Data.GameObjectRef`, which exists only in the **0.66.0–0.67.3** window; from `0.68.0` the namespace was renamed (`AIGD`) and the adapter fails to compile (`CS0234`/`CS0246`). `0.66.0` is the directly-verified version. Do **not** take `latest` (currently `0.86.x`) — it breaks. (If UnifiedXRMotion later tightens its `versionDefine`, a newer MCP may become valid — re-check `promptscene/docs/xumflow-migration.md` §7 before changing this.)
+
+Other live Unity MCP servers you could substitute (not verified here):
+
+- [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp) — bridge for managing assets, scenes, scripts; actively maintained (formerly `justinpbarnett/unity-mcp`, now transferred here).
 
 ---
 
@@ -38,12 +47,10 @@ Skills are invoked with the plugin namespace: `/promptscene:<skill>`.
 
 | Skill | What it does |
 |---|---|
-| `/promptscene:assemble-room <RoomName>` | Assembles a ROOM scene and **live-proves it end-to-end** — applies the C1–C4 invariants, rebuilds `Room.exe`, starts the Master + Room servers, joins from an editor client, and verifies the §6.5 runtime signals (avatar spawns, lobby unloads, WASD-ready). |
-| `/promptscene:scaffold-content <description>` | Scaffolds a **new FEATURE module from a natural-language prompt** and live-proves it — generates a contract-conforming `IToggleableContent` from the frozen Ruler template, drops it into a fresh RoomCore test room under `FEATURES`, rebuilds/runs/joins, and verifies the §5 FEATURES checks (self-registers, `SetEnabled` exception-free, valid meta) in the live networked room. |
-| `/promptscene:compose-room <natural-language room request>` | **Composes a room from a one-line request** by selecting existing FEATURE modules from the `Content/` catalog, recording the choice in `composition-plan.json`, assembling them onto a RoomCore base, and live-proving it — orchestrates `assemble-room` + `scaffold-content` (by reference, not duplication) then auto-judges both the §6.5 SYSTEMS signals and the §5 FEATURES checks for every selected feature. |
-| `/promptscene:deploy-client [Meta\|XReal\|Tablet\|Vision]` | Builds and deploys the client app for the target platform — applies the device preset, bundles the room scene, bakes in the master IP, builds via `BuildPipeline`, and (Android) installs + launches over `adb` and verifies the master connection. |
+| `/promptscene:assemble-room <RoomName>` | Assembles an empty ROOM **skeleton** and **live-proves it** — clones a sample room, registers it, builds the 5 layers (SYSTEMS + ENVIRONMENT + UI + empty FEATURES + empty COMPOSITIONS), then QuickTests the **§6.5** runtime signals (avatar spawns, RoomCore up with 4 services + empty registry, WASD-ready). Skeleton only — no feature content. |
+| `/promptscene:add-component <request> [on <Room>]` | Puts a **component (a FEATURE or a COMPOSITION) onto a room** and completes the full cycle — consults (classifies FEATURE vs COMPOSITION, judges buildability), gets the component (reuse / AI-generate from the Ruler template / wire a human script), places it under the right layer with prefab wiring, then QuickTest-proves **§5** (self-registers + `SetEnabled` exception-free + valid meta) **and §6.5** (avatar still spawns = SYSTEMS unbroken). |
 
-Run them in order: **compose or assemble a room first**, optionally **scaffold new features** onto it, then **deploy** to a device.
+Run them in order: **assemble a room skeleton first**, then **add components** onto it.
 
 ---
 
@@ -51,3 +58,4 @@ Run them in order: **compose or assemble a room first**, optionally **scaffold n
 
 - **Design & architecture:** [promptscene/docs/ARCHITECTURE.md](promptscene/docs/ARCHITECTURE.md)
 - **Spec (SSOT):** [promptscene/docs/promptscene-content-contract.md](promptscene/docs/promptscene-content-contract.md)
+- **한국어:** [promptscene/docs/KOR/README.MD](promptscene/docs/KOR/README.MD)
