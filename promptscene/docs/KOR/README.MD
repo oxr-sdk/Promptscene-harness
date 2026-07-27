@@ -16,7 +16,9 @@
 
 우리가 사용·라이브 검증한 것은 **[IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP)** ⭐ (`com.ivanmurzak.unity.mcp`)입니다.
 
-> **버전 고정(IvanMurzak/Unity-MCP는 필수):** **`0.66.0`**으로 고정하세요. studio의 UnifiedXRMotion 1.8.5 MCP 어댑터가 `…Runtime.Data.GameObjectRef`를 참조하는데, 이 심볼은 **0.66.0–0.67.3** 구간에만 존재합니다. `0.68.0`부터 네임스페이스가 `AIGD`로 리네임되어 어댑터가 컴파일 실패(`CS0234`/`CS0246`)합니다. `0.66.0`이 직접 검증된 버전입니다. `latest`(현재 `0.86.x`)를 쓰면 **깨집니다.** (추후 UnifiedXRMotion이 `versionDefine`을 조이면 신버전 MCP가 유효해질 수 있으니, 바꾸기 전 `promptscene/docs/xumflow-migration.md` §7의 현재 상태를 확인하세요.)
+> **버전 고정(IvanMurzak/Unity-MCP 사용 시 권장):** **`0.66.0`**으로 고정하세요 — studio에서 실제로 설치·5층 검증된 값입니다. studio의 UnifiedXRMotion 1.8.5 MCP 어댑터가 `…Runtime.Data.GameObjectRef`를 참조하는데, 이 심볼은 **0.66.0–0.67.3** 구간에만 존재합니다(`0.68.0`부터 네임스페이스가 `AIGD`로 리네임).
+>
+> **노트(신버전):** UnifiedXRMotion 1.8.5의 `versionDefine` 참조가 이후 담당자에 의해 **완화**되어, `latest`(현재 `0.86.1`)도 동작할 *가능성*이 생겼습니다 — 단 **studio 실측 미완**입니다. `0.86.1` 승격은 별도 작업(MCP 재설치 + 컴파일 검증, NuGet DLL 동기화 포함)이라, 이 README는 **실측값 = `0.66.0`**을 기재합니다. 검증 후 승격 예정 — 바꾸기 전 `../xumflow-migration.md` §7의 현재 상태를 확인하세요.
 
 대체 가능한 다른 살아있는 Unity MCP 서버(여기서 검증하진 않음):
 
