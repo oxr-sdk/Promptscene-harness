@@ -28,20 +28,37 @@
 
 ### 1단계: 플러그인 설치
 
-정식 설치(마켓플레이스 경유):
+로드 방법은 두 가지입니다. 스킬을 **쓰기만** 할 거면 **A**, 스킬을 **고칠** 거면 **B**를 고르세요.
+
+#### A. 정식 설치 — 마켓플레이스 경유(영구)
+
+Claude Code 안에서 슬래시 명령 두 개를 실행합니다:
 
 ```
 /plugin marketplace add oxr-sdk/Promptscene-harness
 /plugin install promptscene@promptscene-harness
 ```
 
-개발/임시 로드(이 세션 한정):
+| 명령 | 실제로 하는 일 |
+|---|---|
+| `/plugin marketplace add oxr-sdk/Promptscene-harness` | **플러그인 소스(카탈로그)를 등록**합니다. `oxr-sdk/Promptscene-harness`는 GitHub `owner/repo` 축약형 — Claude Code가 그 레포를 받아 [`.claude-plugin/marketplace.json`](../../../.claude-plugin/marketplace.json)을 읽습니다. 이 파일이 "이 레포가 어떤 플러그인을 배포하는지"의 목록(여기선 `promptscene` 하나)입니다. 이 단계는 **아무것도 설치하지 않습니다** — 목록만 알려줄 뿐. |
+| `/plugin install promptscene@promptscene-harness` | 플러그인 본체를 설치합니다. 문법은 `<플러그인>@<마켓플레이스>`: `promptscene`은 카탈로그에 선언된 플러그인 이름, `promptscene-harness`는 방금 추가한 마켓플레이스 이름입니다(레포 이름 표기가 아니라 `marketplace.json`의 `name` 필드). 설치되면 스킬을 `/promptscene:<skill>`로 호출할 수 있습니다. |
+
+설치된 플러그인은 세션이 바뀌어도 유지됩니다. `/plugin`만 치면 대화형 관리자(탐색/활성화/비활성화/제거)가 열립니다.
+
+#### B. 개발·임시 로드 — 로컬 체크아웃 직접 사용(이 세션 한정)
+
+레포 루트에서:
 
 ```
 claude --plugin-dir .
 ```
 
-스킬 편집 후에는 `/reload-plugins`로 변경을 반영합니다.
+**로컬 디렉터리**를 플러그인 소스로 지정합니다 — 마켓플레이스도, 설치 단계도, git 왕복도 없습니다. 해당 세션에서만 유효하고 종료하면 사라집니다. 디스크의 수정본이 그대로 로드되므로, 스킬을 작성·수정 중일 때 쓰세요.
+
+스킬 편집 후에는 `/reload-plugins`로 재시작 없이 변경을 반영합니다.
+
+> **뭘 써야 하나?** A = 배포된 스킬을 쓸 때. B = 스킬을 개발할 때. 둘을 동시에 켜지 마세요 — 같은 플러그인이 두 벌 로드됩니다.
 
 ### 2단계: 스킬 실행
 

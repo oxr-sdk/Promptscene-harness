@@ -26,20 +26,37 @@ Other live Unity MCP servers you could substitute (not verified here):
 
 ### Step 1: Install the Plugin
 
-Official install (via the marketplace):
+There are two ways to load this plugin. Pick **A** if you just want to *use* the skills, **B** if you're *editing* them.
+
+#### A. Official install — via the marketplace (persistent)
+
+Run these two slash commands inside Claude Code:
 
 ```
 /plugin marketplace add oxr-sdk/Promptscene-harness
 /plugin install promptscene@promptscene-harness
 ```
 
-Dev / temporary load (this session only):
+| Command | What it actually does |
+|---|---|
+| `/plugin marketplace add oxr-sdk/Promptscene-harness` | Registers a **plugin source**. `oxr-sdk/Promptscene-harness` is GitHub `owner/repo` shorthand — Claude Code fetches that repo and reads its [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json), a catalog declaring which plugins the repo publishes (here: one, named `promptscene`). This step **installs nothing** — it only makes the catalog known. |
+| `/plugin install promptscene@promptscene-harness` | Installs the plugin itself. The syntax is `<plugin>@<marketplace>`: `promptscene` is the plugin name from the catalog, `promptscene-harness` is the marketplace name you just added (it's the `name` field in `marketplace.json`, **not** the repo name's casing). Once installed, its skills are callable as `/promptscene:<skill>`. |
+
+Installed plugins persist across sessions. `/plugin` on its own opens the interactive manager (browse / enable / disable / uninstall).
+
+#### B. Dev / temporary load — straight from a local checkout (this session only)
+
+From the repo root:
 
 ```
 claude --plugin-dir .
 ```
 
-After editing a skill, run `/reload-plugins` to pick up the changes.
+This points Claude Code at a **local directory** as a plugin source: no marketplace, no install step, no git round-trip. It lasts only for that session — quit and it's gone. Use it when you're authoring or modifying skills, since your edits on disk are what gets loaded.
+
+After editing a skill, run `/reload-plugins` to pick up the changes without restarting.
+
+> **Which one?** A = consuming the released skills. B = developing them. Don't run both at once — you'd load two copies of the same plugin.
 
 ### Step 2: Run a skill
 
