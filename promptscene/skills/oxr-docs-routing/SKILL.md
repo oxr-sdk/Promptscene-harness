@@ -30,9 +30,9 @@ description: >
 | 문서 | 언제 읽나 |
 |---|---|
 | `promptscene-content-contract.md` | 계약 인터페이스 불일치, SYSTEMS/FEATURES 분류 판단, 씬 계층 규약, 불변식 C1~C4 |
-| `build-working-room.md` | 아바타 스폰 안 됨, 입장/씬 전환 이상, 룸 조립 절차 전반 |
-| `build-xumlobby-server.md` | 서버(Master/Room exe) 빌드·런타임 문제 |
-| `build-meta-client.md` | Quest 클라 빌드, **화면 깜빡임/시점 고정("2 audio listeners") → §2.4-D** |
+| `build-studio-room.md` | 아바타 스폰 안 됨, 입장/씬 전환 이상, studio 룸 조립·검증 절차·함정 전반 (SSOT) |
+| `xumflow-migration.md` | studio 환경·MCP 버전·이식 결정·함정(§7) |
+| `capability-map.md` | 재조합 ✅ vs 개척 ⛔ — 컴포넌트 구현 가능성 판단 |
 | `promptscene-launchpad-attempt.md` | 런치패드/ContentMeta 관련 작업 전 회고 확인 |
 
 여기 있는 함정 지식(예: FishNet 씬 네트워크 오브젝트 재배치 → Room.exe 재빌드)은 아래 어느 소스에도 없다. **플랫폼 문서보다 이 층을 먼저 본다.**
@@ -72,13 +72,11 @@ grep -rn "public .* Instantiate\|public .* RPC" Library/PackageCache/*xumnet*/Ru
 | 증상/작업 | 경로 |
 |---|---|
 | 계약 인터페이스 컴파일 에러 | 1층 contract §2 |
-| 아바타 안 뜸 / 로비 안 사라짐 / WASD 불가 | 1층 build-working-room + C1~C4 점검 |
+| 아바타 안 뜸 / 로비 안 사라짐 / WASD 불가 | 1층 build-studio-room + C1~C4 점검 |
 | 네트워크 스폰·RPC·소유권 구현 | 4층 Object Management로 패턴 파악 → 3층 XumNet 소스로 시그니처 검증 → 2층 `Documentation~/ai` 보충 |
 | 아바타 모션 이상 | 2층 UnifiedXRMotion → 3층 소스 |
-| 로그인/로비 UI | 2층 XumLobby → 1층 build-working-room |
-| 서버 빌드/실행 | 1층 build-xumlobby-server → 2층 XumBuildkit |
-| Quest 클라 화면 깜빡임 | 1층 build-meta-client §2.4-D (즉답 있음) |
-| 새 씬 조립 | 1층 build-working-room 우선, 4층 Scene Assembly는 교차 확인용 |
+| 로그인/로비 UI | 2층 XumLobby → 1층 build-studio-room |
+| 새 씬 조립 | 1층 build-studio-room 우선, 4층 Scene Assembly는 교차 확인용 |
 
 ## 3. 에스컬레이션과 역기입
 
