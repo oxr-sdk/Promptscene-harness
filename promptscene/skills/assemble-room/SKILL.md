@@ -31,6 +31,8 @@ the Addressables address, and the QuickTest `roomSceneKey`.
 
 ## Scope — skeleton only (boundary, enforce strictly)
 IN:
+- **Bootstrap Core if absent** (Phase 0): `PromptScene.Core.*` is NOT in the base XumFlow checkout (local-only,
+  untracked) — copy the carried spec into the project when the type is missing, so a fresh clone can build.
 - Clone base sample room → `<Room>.unity` (byte copy preserves the spawner SceneId).
 - Register in Content Manager (Addressables leaf address + `RoomScene` label).
 - Build the **5 skeleton layers**: `===== SYSTEMS =====` (RoomCore + `Player/--PLAYER_SPAWNER`),
@@ -53,7 +55,8 @@ OUT (do NOT do these — they belong to `add-component`):
 ## Key resources (studio, paths stable)
 - Sample base rooms: `Assets/App/Scenes/T_RoomA.unity` (default — no Capsule), `T_RoomB.unity` (has decorative Capsule)
 - Boot scene (NetworkManager + QuickTestStarter): `Assets/App/Scenes/QuickStart.unity`
-- Core: `Assets/App/Scripts/ContentLogic/PromptScene/Core/` (`RoomCore` etc., in `App.HotUpdate`)
+- Core (in-project, LOCAL-ONLY / untracked): `Assets/App/Scripts/ContentLogic/PromptScene/Core/` (`RoomCore` etc., in `App.HotUpdate`)
+- **Core spec the skill carries (bootstrap source, Phase 0):** `${CLAUDE_PLUGIN_ROOT}/skills/assemble-room/assets/core/{RoomCore,Contracts,RoomContentRegistry,SimpleClickProvider}.cs` (+ `README.md`) — copied into the project only when the type is absent
 - QuickTest result file (Read after Check): `c:\J_0\XumFlow-studio\Temp\ps_qt_result.txt`
 - Assets (set `ROOM`/`BASE` const at the top of each before running via `script-execute`):
   `${CLAUDE_PLUGIN_ROOT}/skills/assemble-room/assets/{duplicate_and_register,build_skeleton,verify_quicktest}.cs`
@@ -61,6 +64,21 @@ OUT (do NOT do these — they belong to `add-component`):
 ---
 
 ## EXECUTE
+
+### Phase 0 — Bootstrap Core (contract §2; ONLY if the project lacks it)
+`PromptScene.Core.*` (RoomCore + registry + the 4 services) is **not part of the base XumFlow checkout** — in studio
+it is **untracked / local-only** under `Assets/App/Scripts/ContentLogic/PromptScene/Core/`. On a fresh clone it is
+absent, and Phase 2's `FindType("PromptScene.Core.RoomCore")` would fail hard. So first:
+1. **Check presence.** Does `Assets/App/Scripts/ContentLogic/PromptScene/Core/RoomCore.cs` exist, or does
+   `PromptScene.Core.RoomCore` load in the AppDomain (`script-execute` a `GetTypes()` probe)?
+2. **If present → SKIP** (never overwrite a local Core; it may be newer than the carried spec).
+3. **If absent → import the carried spec.** Copy the 4 files from
+   `${CLAUDE_PLUGIN_ROOT}/skills/assemble-room/assets/core/{RoomCore,Contracts,RoomContentRegistry,SimpleClickProvider}.cs`
+   into `Assets/App/Scripts/ContentLogic/PromptScene/Core/` (create the folders). Then MCP `assets-refresh`, **wait
+   `EditorApplication.isCompiling==false`, and verify `PromptScene.Core.RoomCore` now loads in the AppDomain.** This
+   is a compile + domain-reload gate — do it as **its own step before opening the room scene** (do not fold it into
+   Phase 2). `.meta` files are not carried — Unity regenerates them; Core is referenced by type name / `using`, not by
+   GUID (assets/core/README.md).
 
 ### Phase 1 — Clone + register (build-studio-room §1)
 Set `ROOM` (and `BASE` if the user named a base) in `assets/duplicate_and_register.cs`, then `script-execute`

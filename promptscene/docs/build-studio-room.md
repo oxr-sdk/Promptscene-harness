@@ -34,6 +34,7 @@
 
 ## 2. Core / FEATURE 이식
 
+- **⚠ Core는 XumFlow 베이스에 없음(로컬 전용/untracked).** `ContentLogic/PromptScene/` 전체가 studio git에서 `??`(untracked) — 새로 XumFlow를 클론/커밋받으면 `PromptScene.Core.RoomCore`가 **없어** `FindType`이 하드 실패한다. 그래서 **Core는 스킬이 스펙으로 들고 부트스트랩한다**: `assemble-room/assets/core/{RoomCore,Contracts,RoomContentRegistry,SimpleClickProvider}.cs`(verbatim 스펙) → 타입 부재 시에만 프로젝트 `Core/`로 복사 → refresh → `isCompiling==false` + AppDomain 타입 로드 확인(컴파일+도메인 리로드 게이트, **씬 열기 전 독립 단계**). 로컬 Core가 이미 있으면 **덮어쓰지 않음**(더 최신일 수 있음). `.meta`는 미동봉(Unity 재생성; Core는 타입명/`using` 참조라 GUID 불요). 상세: assets/core/README.md.
 - **위치:** `ContentLogic/PromptScene/Core/`(Contracts·RoomContentRegistry·SimpleClickProvider·RoomCore) + `ContentLogic/PromptScene/Content/<Feature>/`. **별도 asmdef 불요**(App.HotUpdate 안).
 - **소스 무개조 이식**(§0 API 병존). 추가/수정 후 `AssetDatabase.Refresh` → **`EditorApplication.isCompiling==false` 확인 + AppDomain에 타입 로드 확인**(= 0 에러의 결정적 신호; script-execute로 `GetTypes()` 조회).
 - RoomCore는 `Awake`에서 4서비스 등록(`IInteraction`=SimpleClickProvider(자동 AddComponent) / `INetSpawn`=FishNetSpawn / `IRoomUserState`=로컬스텁 / `IEventBus`=인프로세스). FEATURE는 `Start`에서 `RoomCore.Instance.Contents.Register(this)` 자기등록.
