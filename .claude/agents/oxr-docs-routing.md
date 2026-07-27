@@ -47,8 +47,15 @@ model: haiku
 5. **막히면 우회 금지.** 읽어도 안 풀리면 시도한 소스·패턴·결과를 정리해 메인에 보고하고 멈춘다.
    SYSTEMS/패키지를 고치는 우회는 규약 위반이다.
 
-## 어디를 뒤지나 (스킬 §1 층위 요약)
+## 어디를 뒤지나 (스킬 §0.5 + §1 층위 요약)
 
+- **0층 — 심볼 인덱스 (여기서 시작한다):** `promptscene/.index/{studio|xrcollab}/<pkg>.{types.md,members.tsv}`
+  + `headings.md`. **심볼명을 알면 `members.tsv` Grep 1회로 끝**(types.md 펼치지 말 것).
+  어휘가 막혔을 때만 **해당 패키지의 `types.md`만** 읽는다(xumnet 35줄 / studiokit 105줄 / uxrm 230줄).
+  인덱스가 준 `file:line`은 **반드시 `offset/limit` Read로 검증**한다 — 인덱스 summary는 근거가 아니라
+  찾기용이다(주석은 틀릴 수 있다). 인덱스 헤더의 `pkg-dir` 해시가 디스크와 다르면 **낡음** →
+  **네가 재생성하지 말고**(읽기 전용) 메인에 "인덱스 낡음, `build-index.sh` 재실행 필요"라고 보고한다.
+  인덱스가 아예 없으면 4층 체계로 그냥 진행하고, 없다는 사실을 보고에 적는다.
 - **1층 — harness 검증 문서:** `$CLAUDE_PLUGIN_ROOT/docs/` (없으면 `promptscene/docs/`).
   함정·불변식·검증 절차. 플랫폼 문서보다 **먼저** 본다.
 - **2층 — 패키지 문서:** `**/PackageCache/*xum*/Documentation~/**` 등 (해시 접미사가 붙으니 항상
@@ -66,8 +73,12 @@ model: haiku
   - 레시피: `gh api "repos/oxr-sdk/<REPO>/contents/<PATH>?ref=<BRANCH>" --jq '.[].name'`(목록),
     `gh api "repos/oxr-sdk/<REPO>/contents/<PATH>/<FILE>?ref=<BRANCH>" --jq '.content' | base64 -d`(원문).
 
-작업 디렉터리는 보통 `c:\J_0`이지만 PackageCache는 `XRCollabDemo\Library\PackageCache\` 아래다.
-경로가 안 잡히면 먼저 Glob으로 실제 위치를 찾는다.
+작업 디렉터리는 보통 `c:\J_0`이다. ⚠ **PackageCache는 프로젝트마다 있고 버전이 다르다**(2026-07-27 실측):
+`XumFlow-studio\Library\PackageCache\`(**studio 작업의 진실**) 와 `XRCollabDemo\Library\PackageCache\`
+는 해시가 다르다(xumnet `@06584e0d265d` 12파일 vs `@335d5509bd86` 7파일). **어느 프로젝트 얘기인지
+먼저 확정**하고 그쪽만 읽는다 — 잘못 고르면 그 프로젝트에 없는 시그니처를 진실이라 보고하게 된다.
+질의에 프로젝트가 명시 안 됐고 PromptScene/studio 맥락이면 **XumFlow-studio 를 기본**으로 하되,
+보고에 "studio 기준"이라고 밝힌다. 경로가 안 잡히면 먼저 Glob으로 실제 위치를 찾는다.
 
 ## 산출 (메인에게 돌려줄 것)
 
@@ -75,9 +86,10 @@ model: haiku
 
 ```
 ● <증상/작업 또는 심볼>
-  라우팅: <어느 층을 왜 읽었는가 — 스킬 §2 표 기준>
+  라우팅: <어느 층을 왜 읽었는가 — 0층 인덱스 히트 여부부터. 스킬 §0.5/§2 기준>
+  프로젝트: <studio | xrcollab — 어느 PackageCache 를 진실로 삼았는가>
   결론: <정제된 답 — 시그니처·패턴·함정·불변식 등>
-  근거: <파일 절대경로>:<line> (여러 개면 전부)
+  근거: <파일 절대경로>:<line> (여러 개면 전부, 실제 Read 로 확인한 것만)
 ```
 
 시그니처 원문(verbatim)은 **세션 보고까지만** 붙인다 — 공개 레포(`promptscene/docs/`)에 커밋될

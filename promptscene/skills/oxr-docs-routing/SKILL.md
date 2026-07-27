@@ -20,8 +20,44 @@ description: >
 
 1. **문서는 지도, 소스는 진실.** 플랫폼 API(XumNet 등)를 코드에 쓰기 전에 **반드시 PackageCache의 실제 소스에서 시그니처를 확인**한다. 공식 GitBook 예시 코드에 문법 오류·오타가 확인된 바 있으므로(예: Object Management 페이지의 `XumView.RPC` 예시), 문서 코드를 그대로 복붙하는 것을 금지한다.
 2. **원본만 읽는다 (SSOT).** 문서 내용을 다른 파일로 요약·복사해 두지 않는다. 요약본은 낡는다.
+   - **유일한 예외 = 0층 인덱스(§0.5).** 사람이 쓴 요약이 아니라 소스에서 **기계 추출한 포인터**이고,
+     패키지 해시로 **자기 무효화**되며, **주장의 근거로 쓰지 않는다**(찾기 전용). 그래서 SSOT를 안 깬다.
 3. **PackageCache는 읽기 전용.** `Library/PackageCache/` 하위와 `Packages/manifest.json`은 절대 수정하지 않는다 (PreToolUse 훅이 기계적으로 차단하지만, 우회 시도 자체를 하지 말 것). 로컬/임베디드 패키지(`Packages/` 하위)도 수정 금지.
 4. **GitHub 원격 접근은 인증된 `gh`로 지정 경로만.** `oxr-sdk` 조직 레포들은 **private**이다 — 익명 접근(anonymous clone/fetch/WebFetch)은 안 되고 시도하지 말 것. 단, 로컬 `gh` CLI가 org 인증(`repo` 스코프)돼 있으면 **아래 §1에 지정된 문서 경로에 한해** `gh api`(GET)로 원문을 읽을 수 있다(레시피는 §1). 쓰기(`-X POST/PATCH/DELETE`)·clone·타 경로 무단 접근은 금지. **버전 스큐 주의:** GitHub은 `@main`/`@studio` 최신, 로컬 PackageCache는 핀된 버전이라 어긋날 수 있으므로 GitHub 문서는 **지도로만** 쓰고 **시그니처의 진실은 로컬 PackageCache 소스(3층)에서 재검증**한다(대원칙 1).
+
+## 0.5. 0층 — 심볼 인덱스 (먼저 여기서 위치를 잡는다)
+
+**위치:** `promptscene/.index/{studio|xrcollab}/<pkg>.{types.md,members.tsv}` + `headings.md`
+**생성:** `bash promptscene/skills/oxr-docs-routing/assets/build-index.sh` (약 5초, 모델 토큰 0)
+**커밋 금지** — 생성물은 `.gitignore`. 이 레포는 PUBLIC이고 oxr-sdk 패키지는 private이다(유출 방지).
+
+### 왜 있나 (2026-07-27 실측)
+기준선 질의("레이트 조이너가 이미 스폰된 것을 보게 하려면?")를 아래 4계층만으로 풀었을 때
+**왕복 6회 / 변동 유입 ~8,000자**, 그중 **GitBook 네트워크 왕복 2회가 수확 0**이었다.
+같은 질의를 인덱스 grep 1회로 풀면 **답이 더 많이** 나왔다(기준선이 놓친 `InstantiateRoomObject`,
+`NotifyInstantiation[ObserversRpc]` 포함). 병목은 corpus 크기가 아니라 **경로 재발견 + grep 추측 + 통짜 Read**다.
+
+### 3단 사용법
+1. **심볼명을 이미 안다** (대부분) → `members.tsv`를 **Grep 1회**. 끝. types.md는 펼치지 않는다.
+2. **어휘가 막힌다**("앉았다고 알리려면?") → 해당 **패키지의 `types.md`만** 읽는다
+   (xumnet 35줄≈1k토큰 / xumstudiokit 105줄 / unifiedxrmotion 230줄≈12k토큰). 통합본을 읽지 않는다.
+3. **어느 문서 절인지** → `headings.md`(434줄) grep.
+
+### 철칙 3개
+- **인덱스는 지도, 근거는 구현.** 인덱스가 준 `file:line`을 **반드시 `offset/limit`으로 Read**해서
+  실제 시그니처·동작을 확인한 뒤 답한다. **인덱스의 summary를 근거로 인용하지 않는다** —
+  주석은 틀릴 수 있다(전례: `A_DisplayName.cs:38-41` 주석이 `XumView.cs` 구현과 불일치).
+- **통짜 Read 금지.** 인덱스가 줄 번호를 주므로 806줄짜리 파일을 통째로 읽을 이유가 없다.
+- **낡음 감지.** 각 인덱스 헤더의 `pkg-dir(해시 스탬프)`가 디스크의 실제 디렉터리명과 다르면 낡은 것이다.
+  → 읽기 전용 에이전트(oxr-docs-routing / oxr-source-scout)는 **재생성하지 말고 메인에 보고**한다.
+
+### 무엇이 들어 있나
+`public` 선언 **+ `///` summary를 가진 모든 선언(private 포함)** + 선행 속성(`[ObserversRpc(...)]`).
+private을 넣는 이유: 기준선의 정답 `SendPropertySnapshot`이 **private**이었다 —
+public만 담았으면 못 찾았을 질의다. 의미 신호는 심볼명이 아니라 **`///` 주석**에 있다(실측: "late join"이
+심볼명에 0회, 전부 주석에서 히트).
+
+---
 
 ## 1. 참조 소스 4계층 (우선순위 순)
 
@@ -51,9 +87,16 @@ description: >
 
 ### 2층 — PackageCache 패키지 문서 (로컬, 네트워크 불필요)
 
+> ⚠ **PackageCache는 하나가 아니다 — 프로젝트마다 있고 버전이 다르다 (2026-07-27 실측 확인).**
+> `c:\J_0\XumFlow-studio\Library\PackageCache\` (**studio 작업의 진실**) 와
+> `c:\J_0\XRCollabDemo\Library\PackageCache\` 는 **서로 다른 해시**다
+> (예: xumnet `@06584e0d265d` 12파일 vs `@335d5509bd86` 7파일).
+> **작업 중인 프로젝트의 루트를 먼저 확정**하고 그쪽만 읽는다. 잘못 고르면 존재하지 않는
+> 시그니처를 "진실"이라고 보고하게 된다. 0층 인덱스도 `studio/` · `xrcollab/` 로 갈려 있다.
+
 위치 탐색 (경로에 해시 접미사가 붙으므로 항상 glob/grep으로 찾는다):
 ```bash
-ls -d Library/PackageCache/*/ | grep -iE "xum|unified|xr"
+ls -d <프로젝트>/Library/PackageCache/*/ | grep -iE "xum|unified|xr"
 ```
 `Documentation~`는 Unity 임포트에서 숨겨질 뿐 디스크에는 존재한다.
 
@@ -81,14 +124,21 @@ grep -rn "public .* Instantiate\|public .* RPC" Library/PackageCache/*xumnet*/Ru
 
 ## 2. 증상 → 소스 라우팅
 
+**모든 행의 0단계는 0층 인덱스(§0.5)다** — 심볼 위치는 인덱스로 잡고, 아래 표는 "그 다음 무엇을 읽나"다.
+
 | 증상/작업 | 경로 |
 |---|---|
 | 계약 인터페이스 컴파일 에러 | 1층 contract §2 |
 | 아바타 안 뜸 / 로비 안 사라짐 / WASD 불가 | 1층 build-studio-room + C1~C4 점검 |
-| 네트워크 스폰·RPC·소유권 구현 | 4층 Object Management로 패턴 파악 → 3층 XumNet 소스로 시그니처 검증 → 2층 `Documentation~/ai` 보충 |
-| 아바타 모션 이상 | 2층 UnifiedXRMotion → 3층 소스 |
+| **네트워크 스폰·RPC·소유권 구현** | **0층 인덱스 → 3층 XumNet 소스(진실) → 2층 `Documentation~/ai` 보충. 4층 GitBook은 교차 확인용으로만.** |
+| 아바타 모션 이상 | 0층 인덱스(unifiedxrmotion) → 2층 UnifiedXRMotion 문서 → 3층 소스 |
 | 로그인/로비 UI | 2층 XumLobby → 1층 build-studio-room |
 | 새 씬 조립 | 1층 build-studio-room 우선, 4층 Scene Assembly는 교차 확인용 |
+
+> ⚠ **스폰/소유권을 4층 GitBook으로 먼저 보내지 말 것 (2026-07-27 실측으로 뒤집힌 규칙).**
+> 이전 판은 "4층 Object Management로 패턴 파악 → 3층 검증" 순서였다. 실측에서 그 페이지는
+> 레이트 조이너 질의에 **아무 내용이 없었고** 네트워크 왕복 2회를 태웠다. 답은 3층 소스에 있었다.
+> GitBook은 "이 기능이 존재하는가"까지만 쓸모 있다.
 
 ## 3. 에스컬레이션과 역기입
 

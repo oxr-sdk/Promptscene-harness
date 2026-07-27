@@ -39,7 +39,24 @@ PackageCache에서 **실제 시그니처를 직접 읽어** 확인해 돌려준�
    `XumView.RPC`)에 문법 오류가 확인된 바 있다. 존재/패턴 확인은 문서로, **시그니처는 반드시
    소스에서** 재검증.
 
-## 어디를 뒤지나 (oxr-docs-routing §1 층위)
+## 어디를 뒤지나 (oxr-docs-routing §0.5 인덱스 + §1 층위)
+
+- **0층 — 심볼 인덱스에서 시작한다 (Grep/Read로 접근 가능):**
+  `promptscene/.index/{studio|xrcollab}/<pkg>.members.tsv` — 형식은
+  `NAME <TAB> DECL <TAB> relpath:line <TAB> summary <TAB> attrs`.
+  - **심볼명을 아는 질의(네 주업)는 여기 Grep 1회면 위치+선언이 나온다.** 추측 패턴으로
+    `PackageCache`를 훑는 것보다 항상 먼저 시도한다.
+  - 어휘가 막히면 해당 패키지의 `types.md`만 읽는다(xumnet 35줄 / xumstudiokit 105줄 / uxrm 230줄).
+    의미 텍스트는 심볼명이 아니라 소스 `///` summary에서 온다 — 그래서 자연어 단어로도 걸린다.
+  - **인덱스는 절대 근거가 아니다.** 반드시 인덱스가 준 `relpath:line`을 **`Read`(offset/limit)로 열어
+    원문 시그니처를 확인**한 뒤 보고한다. 인덱스 summary를 시그니처처럼 인용하지 말 것(주석은 틀릴 수 있다 —
+    전례: `A_DisplayName.cs:38-41` 주석이 `XumView.cs` 구현과 불일치).
+  - **낡음/부재 처리:** 인덱스 헤더의 `pkg-dir` 해시가 디스크 디렉터리명과 다르면 낡은 것이다.
+    **너는 재생성할 수 없다**(Bash 없음 = 설계된 읽기 전용). 그럴 땐 3층을 직접 뒤져 답을 내되,
+    보고 말미에 **"인덱스 낡음/부재 — `build-index.sh` 재실행 필요"** 를 한 줄 남긴다.
+  - 인덱스 자체는 생성물이라 커밋되지 않는다(`.gitignore`). 없을 수 있는 것이 정상이다.
+
+### 아래는 인덱스가 없거나 낡았을 때의 원래 경로
 
 - **2층 — 패키지 문서:** 경로에 해시 접미사가 붙으니 항상 `Glob`으로 찾는다(예:
   `**/PackageCache/*xum*/Documentation~/**`). `Documentation~/ai/`(XumNet·XumLobby),
@@ -55,8 +72,13 @@ PackageCache에서 **실제 시그니처를 직접 읽어** 확인해 돌려준�
   재구현이 정석이므로, 여기 코드는 **참고**용 원문으로만 인용.)
 - XRCollabDemo 런타임 코드: `XRCollabDemo\Assets\PromptScene\` (Core / Content).
 
-작업 디렉터리는 보통 `c:\J_0` 이지만, PackageCache는 `XRCollabDemo\Library\PackageCache\`
-아래에 있다. 경로가 안 잡히면 먼저 glob으로 실제 위치를 찾는다.
+⚠ **PackageCache는 프로젝트마다 있고 버전이 다르다** (2026-07-27 실측 확인):
+`XumFlow-studio\Library\PackageCache\`(**studio/PromptScene 작업의 진실**) 와
+`XRCollabDemo\Library\PackageCache\` 는 해시가 다르다 — xumnet `@06584e0d265d`(12파일) vs
+`@335d5509bd86`(7파일). **어느 프로젝트의 시그니처를 묻는지 먼저 확정**하고 그쪽만 읽는다.
+잘못 고르면 그 프로젝트에 존재하지 않는 시그니처를 "진실"이라고 보고하게 된다 — 이 에이전트가
+저지를 수 있는 최악의 실패다. 명시가 없고 PromptScene/studio 맥락이면 **XumFlow-studio 기본**,
+그리고 보고에 **어느 프로젝트 기준인지 반드시 밝힌다**. 경로가 안 잡히면 먼저 glob으로 찾는다.
 
 ## 산출 형식 (메인에게 돌려줄 것)
 
@@ -64,6 +86,7 @@ PackageCache에서 **실제 시그니처를 직접 읽어** 확인해 돌려준�
 
 ```
 ● <심볼/타입/API 이름>
+  프로젝트: <studio | xrcollab — 어느 PackageCache 기준인가>
   경로: <절대경로>:<line>
   시그니처: <정제된 한 줄 시그니처 (파라미터 타입/이름, 반환형, enum 멤버 등)>
   원문(세션 한정): <꼭 필요하면 최소 스니펫 — docs 커밋 시 제거될 것임을 표시>
