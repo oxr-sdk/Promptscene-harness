@@ -33,11 +33,11 @@ public class PS_AddComponent {
     // ---- set these before running (add-component fills them from the plan) ----
     const string ROOM      = "AssembleRoom";        // target room leaf (must already be scene-open Single & persistent)
     const string KIND      = "FEATURE";             // "FEATURE" (→ FEATURES layer) | "COMPOSITION" (→ COMPOSITIONS layer)
-    const string TYPE_NAME = "RulerContent";        // C# component type simple name (or full name)
-    const string GO_NAME   = "Ruler";               // child GameObject name under the layer
+    const string TYPE_NAME = "ChairSitContent";     // C# component type simple name (or full name)
+    const string GO_NAME   = "ChairSit";            // child GameObject name under the layer
     // parallel arrays: scene-embed prefab fields to wire (§3b). Leave empty ({}) for no-prefab content (e.g. ScoreHud).
-    static readonly string[] WIRE_FIELDS  = new[]{ "measurementPrefab" };
-    static readonly string[] WIRE_PREFABS = new[]{ "Assets/App/Prefabs/RulerMeasurement.prefab" };
+    static readonly string[] WIRE_FIELDS  = new string[0];
+    static readonly string[] WIRE_PREFABS = new string[0];
     // -------------------------------------------------------------------------
 
     static Type FindType(string name){

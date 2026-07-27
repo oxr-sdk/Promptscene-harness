@@ -31,8 +31,8 @@ public class PS_VerifyComponent {
     // ---- set these three before running (add-component fills them from the plan) ----
     const string ROOM = "AssembleRoom";        // leaf == Addressables address == roomSceneKey
     const string KIND = "FEATURE";             // "FEATURE" | "COMPOSITION"
-    const string CONTENT_ID = "ruler";         // FEATURE: registry Id.  COMPOSITION: ignored (use TYPE_NAME)
-    const string TYPE_NAME = "RulerContent";   // C# type simple name of the placed component (both kinds)
+    const string CONTENT_ID = "chair-sit";     // FEATURE: registry Id.  COMPOSITION: ignored (use TYPE_NAME)
+    const string TYPE_NAME = "ChairSitContent";// C# type simple name of the placed component (both kinds)
     // -------------------------------------------------------------------------------
 
     static string TmpDir => Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Temp"));

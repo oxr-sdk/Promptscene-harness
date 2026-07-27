@@ -3,7 +3,8 @@ name: add-component
 description: >
   Put a user-intended COMPONENT (a FEATURE or a COMPOSITION) onto a RoomCore-bearing PromptScene room in the
   XumFlow **studio** project and LIVE-PROVE it with a QuickTest (contract §5 + §6.5). This is the studio
-  content-adder: it (1) CONSULTS — classifies the intent as FEATURE vs COMPOSITION, judges buildability against
+  content-adder: it (1) CONSULTS — classifies the intent as FEATURE vs COMPOSITION vs UXRM (a UnifiedXRMotion
+  motion/avatar/retargeting preset — its own uxrm-* tool path, §5 registry checks N/A), judges buildability against
   the capability map (재조합 ✅ vs 개척 ⛔), and routes "how to attach" through oxr-docs-routing, promising only
   what §5 can prove; (2) picks the room (or reference-calls /assemble-room to lay a fresh 5-layer skeleton first);
   (3) gets the component — reuse an already-ported type, AI-generate a FEATURE from the frozen Ruler template, or
@@ -34,7 +35,8 @@ Contract §0 (판별 테스트), §1 (5-layer + registry), §2 (interfaces), §5
 
 **Argument:** the component request (natural language), optionally `... on <Room>`. Examples:
 `/add-component 룰러`, `/add-component a spawn-a-cube-where-I-click tool on PromptSceneRoom_1`,
-`/add-component a target-shootout game mode` (→ COMPOSITION).
+`/add-component a target-shootout game mode` (→ COMPOSITION),
+`/add-component 아바타에 UnifiedXRMotion 모션 붙여줘` (→ UXRM — retrospective A′).
 
 ## Retrospective A — the common spine vs the per-kind differences (frozen from migration §9–§15)
 
@@ -60,6 +62,24 @@ Contract §0 (판별 테스트), §1 (5-layer + registry), §2 (interfaces), §5
 | **XRI?** | YES: Grab/Dart · NO: rest | §11.3 **3b XRI boundary**: XR Grab Interactable/Rigidbody are **base-assembly** → serialize **directly on the prefab** (values persist). Hot View stays field-0, wires `selectEntered.AddListener` at runtime in `OnStartClient`. Traps: `OnStartClient` fires **one tick after** spawn (read `_wired` a tick later, not same frame); `using` BOTH `…Toolkit` and `…Toolkit.Interactables` (XRI 3.3.1 moved the type). |
 | **FEATURE vs COMPOSITION** | IToggleableContent vs plain MonoBehaviour | FEATURE **self-registers** (in `Contents.All`, has Meta, SetEnabled) → FEATURES layer, depends only on `PromptScene.Core`, **0 refs to other FEATUREs**. COMPOSITION is **NOT registered** (scene-resident, subscribes to the bus in `Start`) → COMPOSITIONS layer; may reference FEATUREs' **event types** but not their classes, and checks presence via runtime `Contents.GetById(...)`. |
 
+## Retrospective A′ — a THIRD kind: UXRM (UnifiedXRMotion motion/avatar preset)
+Some asks — "아바타에 모션/리타게팅 붙여줘", "add full-body/IK motion", "이 휴머노이드를 UnifiedXRMotion으로 움직이게" —
+are **neither** a FEATURE nor a COMPOSITION. They place a **UnifiedXRMotion preset** (a `RetargetSystem` + auto-collected
+`IRetargeter`s) into the scene and **bind a humanoid `MotionAvatar`** to it. It never enters `Contents.All` (no
+SetEnabled / no Meta), so the §5 registry checks **A/B/C do not apply** — its proof is a **bound RetargetSystem**.
+- **It is driven by UnifiedXRMotion's OWN tools, not `add_component.cs` / the FeatureContent template.** SSOT = the
+  four `uxrm-*` tool schemas (bundled at `c:\J_0\XumFlow-studio\.claude\skills\uxrm-*`; identical to the native MCP
+  tools `mcp__ai-game-developer__uxrm-{describe-scene,pick-preset,place-preset,bind-avatar}`). Workflow:
+  `describe-scene` (what RetargetSystems already exist) → `pick-preset` (→ `PrefabPath`) → `place-preset`
+  (→ `RootInstanceId` / `RetargetSystemInstanceId` / `RootPath`) → `bind-avatar` (`humanoid` + `retargetSystemHolder`
+  = the RetargetSystem's GameObject → `Success` / `Warnings`; **fails when the target is not a humanoid Animator**).
+- **⚠ Open integration question — resolve via oxr-docs-routing BEFORE promising.** A PromptScene studio room spawns its
+  avatar at **runtime** (`Desktop(Clone)`, FishNet); there is **no humanoid in the room scene at edit time** to bind.
+  So *what* the preset binds to (the authored avatar prefab in SYSTEMS/spawner vs the runtime clone) and whether an
+  edit-time placement survives the Addressables room-load are **NOT yet live-frozen** like the six loops below. This
+  path is a **routed addition, not a frozen loop** — route it through **oxr-docs-routing / oxr-source-scout**
+  (UnifiedXRMotion source) first, and do not silently place+bind against a scene that has no humanoid.
+
 ## Retrospective B — why add-component absorbed scaffold-content (studio)
 The XRCollab `/scaffold-content` did "prompt → generate a FEATURE from the frozen Ruler template → live-verify §5"
 against Master/Room.exe servers. add-component's "implement + wire + verify" is a **strict superset** of that studio
@@ -79,6 +99,10 @@ reference-call **assemble-room (skeleton) + add-component (content)**.
   correctness and aesthetics need a human/vision loop. **Ray injection caveat:** the agent injects at the
   `SubmitExternalRay`/reflected-`OnClick` boundary, **not** a real OS pointer-event → raycast. **Out of scope:**
   2-client parity (MPPM queue), real-device / XRI hand manipulation (human + simulator), Smart-Deploy.
+- **UXRM (retrospective A′) is a routed addition, not a frozen loop.** It proves only a **bound RetargetSystem**
+  (`uxrm-describe-scene` `MotionAvatarPath` non-null + bind `Success=true`) + SYSTEMS-unbroken + Error 0. It does
+  **not** prove runtime motion fidelity, nor that an edit-time bind survives the runtime FishNet avatar spawn — that
+  bind-target question must be resolved via oxr-docs-routing first (Phase 2U step 0).
 - **Promise only what §5 can keep.** If the ask is a `⛔` capability (capability-map.md — e.g. contested projectile
   = client-side prediction = SYSTEMS thaw, grade "개척"), do **not** silently build a broken stand-in: say what
   blocks it, record a 개척 청구서 (pioneering invoice), and stop for the user.
@@ -106,8 +130,9 @@ reference-call **assemble-room (skeleton) + add-component (content)**.
 
 ### Phase 0 — CONSULT / ESTIMATE (D6 상담층 — 정직 계약 대화판)
 1. **Classify** the intent with the contract §0 판별 테스트: does it coordinate several FEATUREs into one loop
-   (→ **COMPOSITION**) or is it a single opt-in capability (→ **FEATURE**)? Is a **network prefab** involved
-   (shared/spawned result)? Is **XRI** involved (grab/throw)?
+   (→ **COMPOSITION**) or is it a single opt-in capability (→ **FEATURE**)? **Or** is it avatar/humanoid
+   **motion / retargeting / IK / a UnifiedXRMotion preset** (→ **UXRM** — retrospective A′, its own tool path, §5
+   A/B/C N/A)? Is a **network prefab** involved (shared/spawned result)? Is **XRI** involved (grab/throw)?
 2. **Judge buildability** against `${CLAUDE_PLUGIN_ROOT}/docs/capability-map.md`: is this a **재조합** (✅, a
    recombination of verified machines) or a **⛔ 개척** (needs new SYSTEMS/prediction/etc.)? If ⛔ → state the
    blocker, record a 개척 청구서, and **stop for the user** — do not build a silently-broken stand-in.
@@ -158,6 +183,24 @@ network-prefab component also assert `IsSpawned=True` + spawn-once, and for a CO
 server-authoritative loop (build-studio-room §6.5) — picking a **visible (un-occluded) target** for ray injection
 (§14.3 Capsule trap; default base T_RoomA has none).
 
+### Phase 2U/3U/4U — UXRM path (REPLACES Phases 2–4 when KIND=UXRM; retrospective A′)
+Do **not** use `add_component.cs` / `verify_component.cs` — UnifiedXRMotion's own MCP tools place, wire, and verify.
+0. **Route first (mandatory).** Delegate to **oxr-docs-routing** (or **oxr-source-scout** on UnifiedXRMotion source)
+   to answer the open bind-target question (edit-time authored avatar vs runtime `Desktop(Clone)`). If it cannot be
+   answered, **stop and report** — do not place+bind blind (§0 honesty). Confirm the target humanoid with the user.
+1. `scene-open Assets/App/Scenes/<Room>.unity` **Single** (SceneId safety — never re-parent `--PLAYER_SPAWNER`).
+2. `uxrm-describe-scene` → note any existing `RetargetSystem` entries (avoid double-placing).
+3. `uxrm-pick-preset` → take `PrefabPath` (log `Reason`; surface `Alternatives` to the user if non-empty).
+4. `uxrm-place-preset { prefabPath: <PrefabPath> }` → keep `RetargetSystemInstanceId` + `RootPath`.
+5. `uxrm-bind-avatar { humanoid: <the confirmed humanoid ref>, retargetSystemHolder: <RetargetSystem GO> }`.
+   Assert `Success=true` + empty `Warnings` (Success=false ⇒ target is **not a humanoid Animator** — fix the target,
+   do not force). `scene-save` the room (the preset is authored scene content, unlike QuickStart).
+6. **Verify** = `uxrm-describe-scene` shows the RetargetSystem with `MotionAvatarPath` **non-null** (bound); then run
+   the normal QuickTest §6.5 to confirm **SYSTEMS unbroken** (`Desktop(Clone)` still spawns) + **Error 0**. The §5
+   A/B/C registry checks are **N/A** (UXRM never self-registers). Report exactly this — do not claim runtime motion
+   fidelity (behaviour is a human/vision loop; and if the bind target was the authored prefab, runtime-clone motion is
+   still **unproven** until observed live).
+
 ### Phase 5 (optional) — pointing UI (reference-call /cross-platform-ui)
 If the user wants to drive the component by pointing, **ask** which mode and reference-call
 `/cross-platform-ui <PC|PCSS|PCXR|Cross> on <Room>`. The HUD binds itself from the registry (one button per
@@ -177,7 +220,10 @@ proves the onClick→SetEnabled path + `SubmitExternalRay` injection only.
 | C (FEATURE) | `Meta.DisplayName` + `Meta.Category` non-empty | result file RESULT(C) |
 | A (COMPOSITION) | the COMPOSITION type is present & alive in the room (scene-resident) | result file RESULT(A) |
 | B (COMPOSITION) | it did **NOT** leak into the registry (COMPOSITION never self-registers) | result file RESULT(B) |
-| — | `=== §5/§6.5 ADD-COMPONENT VERDICT (<KIND>): PASS ===` | result file |
+| A (UXRM) | `uxrm-describe-scene`: the placed `RetargetSystem` has `MotionAvatarPath` **non-null** (bound) | uxrm-describe-scene |
+| B (UXRM) | `uxrm-bind-avatar` returned `Success=true`, `Warnings` empty | bind-avatar result |
+| C (UXRM) | §5 A/B/C registry checks **N/A** (never self-registers); SYSTEMS unbroken + Error 0 still required | QuickTest §6.5 |
+| — | `=== §5/§6.5 ADD-COMPONENT VERDICT (<KIND>): PASS ===` | result file (FEATURE/COMPOSITION) |
 
 Failure map: `NOT FOUND` (FEATURE) → RoomCore missing / not under FEATURES / didn't compile. `SetEnabled … THREW` →
 R2/R3/R4 violated (touched platform input, non-idempotent, bad teardown). COMPOSITION `leaked=True` → it implements
