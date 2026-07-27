@@ -17,8 +17,6 @@
 우리가 사용·라이브 검증한 것은 **[IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP)** ⭐ (`com.ivanmurzak.unity.mcp`)입니다.
 
 > **버전 고정(IvanMurzak/Unity-MCP 사용 시 권장):** **`0.86.1`**(현재 `latest`)로 고정하세요 — **UnifiedXRMotion 1.9.0** 조합에서 studio 라이브 검증 완료된 값입니다. 검증 범위 = MCP 재설치 + 컴파일 검증(NuGet DLL 동기화 포함) + 5층 QuickTest, 전부 통과.
->
-> **노트(연혁):** 이전에는 **`0.66.0`**으로 고정했었습니다 — UnifiedXRMotion 1.8.5의 MCP 어댑터가 `…Runtime.Data.GameObjectRef`를 참조했는데, 이 심볼은 **0.66.0–0.67.3** 구간에만 존재했기 때문입니다(`0.68.0`부터 네임스페이스가 `AIGD`로 리네임). UnifiedXRMotion **1.9.0**은 현재 네임스페이스를 따라가므로 `0.86.1`이 컴파일·구동되며, `0.66.0` 제약은 더 이상 적용되지 않습니다. 실측 이력은 `../xumflow-migration.md` §7 참조.
 
 대체 가능한 다른 살아있는 Unity MCP 서버(여기서 검증하진 않음):
 

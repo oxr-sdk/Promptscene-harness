@@ -15,8 +15,6 @@ A Claude Code plugin for **synthesizing and verifying rooms from natural-languag
 We use and have live-verified **[IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP)** ⭐ (`com.ivanmurzak.unity.mcp`).
 
 > **Version pin (recommended for IvanMurzak/Unity-MCP):** pin to **`0.86.1`** (the current `latest`) — now live-verified in studio against **UnifiedXRMotion 1.9.0**. Verification covered the full path: MCP reinstall + compile check (incl. NuGet DLL sync) + 5-layer QuickTest, all green.
->
-> **Note (history):** studio previously pinned **`0.66.0`** because UnifiedXRMotion 1.8.5's MCP adapter referenced `…Runtime.Data.GameObjectRef`, a symbol that existed only in the **0.66.0–0.67.3** window (from `0.68.0` the namespace was renamed to `AIGD`). UnifiedXRMotion **1.9.0** tracks the current namespace, so `0.86.1` compiles and runs — the `0.66.0` constraint no longer applies. See `promptscene/docs/xumflow-migration.md` §7 for the measurement trail.
 
 Other live Unity MCP servers you could substitute (not verified here):
 
