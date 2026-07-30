@@ -13,6 +13,8 @@ description: >
   world-click via SubmitExternalRay). This is a PART called by add-component §6; it can also be run directly, e.g.
   "/cross-platform-ui 크로스플랫폼용", "add a pointing UI to my room". Argument = mode (PC | PCSS | PCXR | Cross, default
   Cross) and optionally the target room.
+  All visual values come from the frozen theme HudTheme (glass v0: translucent dark tint, one-meaning cyan accent,
+  PyeojinGothic 400/600) — this skill authors no literal color or size.
 ---
 
 # Lay a reusable cross-platform World Space UI onto a room and QuickTest-prove it
@@ -70,6 +72,15 @@ room that has content to bind (e.g. `PromptSceneRoom_1`, which has Ruler).
   works; **hand mode only changes hand SHAPE, no `select`** — hands are not live-demoable in the editor.
 - Nothing here is framed as "five platforms proven." The claim is **structure = cross-platform-ready; verification =
   desktop mouse + XR Simulator controller.**
+- **Design: the floor is machine-judged; the ceiling is not.** ✅ The *floor* — legibility (angular cap height, tap-target
+  angle, text-plate contrast) and token compliance (zero literal colors/px, on-scale spacing, one-meaning accent, no
+  faux-bold) — is now folded into the automated verdict as **U6/U7**. ❌ **미감(aesthetic quality) is UNVERIFIED** and
+  stays a human/vision judgement: U8 captures a PNG as *evidence* and is deliberately kept out of PASS/FAIL. A green
+  U6/U7 means "obeys the frozen theme", never "looks good". ⬜ **개척 청구서:** the mockup's background **blur** is not
+  built — it needs URP Opaque Texture + a custom shader + stereo-correct UV + real Quest measurement (a per-eye
+  full-screen sample is a Quest GPU cost that only device measurement can settle). Also on the invoice: **bundling the
+  PyeojinGothic 400/600 FontAssets** (a baked-base platform asset), without which the theme's two weights collapse to
+  one and emphasis is colour-only.
 
 ## Ground rules
 - studio MCP (`ai-game-developer`) must be connected. Drive Unity via MCP; do not hand-edit `.unity`.
@@ -77,9 +88,18 @@ room that has content to bind (e.g. `PromptSceneRoom_1`, which has Ruler).
 - **Reusable = no room hardcoding.** The binder reads only the registry; the Ruler "측정 지우기"/count appears **only**
   when `Contents.GetById("ruler")` is non-null at runtime (absent room → just not shown). Never bake a room/feature name.
 - Idempotent: re-running replaces the skill's own `CrossPlatformRoomHud` object and never touches other UI.
+- **`HudTheme.cs` is 성역 (sanctuary), and the copy is ONE-WAY: plugin assets → studio.** Never edit the studio copy —
+  Phase 1b overwrites it every run, so any edit there is silently destroyed. A PreToolUse guard blocks writes to both
+  paths; changing a token means editing the plugin-assets file with the guard temporarily lifted (see the guard script's
+  header for the exact escape hatch) and re-running Phase 1b.
+- **No literal colors and no literal px.** Every color/size/spacing/radius/weight is referenced from `HudTheme`
+  (`script-execute` compiles against App.HotUpdate, so tokens are *referenced*, not copied). If you need a value the
+  theme does not have, do **not** write it into the code — **propose a token and stop** for approval.
 - If a step is blocked, do **not** work around it — read `build-studio-room.md §5/§6`, report, and wait.
 
 ## Key resources (studio, paths stable)
+- **Design tokens — 성역, ONE-WAY copy** (plugin assets → studio, never back): `${CLAUDE_PLUGIN_ROOT}/skills/cross-platform-ui/assets/HudTheme.cs`
+- **Approved mockup = the design contract** (same dimensions as the real panel): `${CLAUDE_PLUGIN_ROOT}/skills/cross-platform-ui/assets/hud-glass-v0.html`
 - Reusable binder (registry-driven): `${CLAUDE_PLUGIN_ROOT}/skills/cross-platform-ui/assets/CrossPlatformRoomHud.cs`
 - XR world-click bridge (guard-copied only if the type is absent): `${CLAUDE_PLUGIN_ROOT}/skills/cross-platform-ui/assets/XRWorldClicker.cs`
 - Assembly (set `ROOM` + `MODE`): `${CLAUDE_PLUGIN_ROOT}/skills/cross-platform-ui/assets/assemble_ui.cs` → `PS_AssembleUI.Run`
@@ -97,6 +117,11 @@ room that has content to bind (e.g. `PromptSceneRoom_1`, which has Ruler).
    there **only if** type `CrossPlatformRoomHud` isn't already loaded. For XR modes, copy `XRWorldClicker.cs` there
    **only if** type `XRWorldClicker` isn't already present anywhere (studio already ships one under Content/Ruler —
    reuse it; a second copy is a `CS0101` duplicate-type error).
+1b. **`HudTheme.cs` → `Assets/App/Scripts/ContentLogic/PromptScene/UI/HudTheme.cs`, ALWAYS OVERWRITE — the guard
+   pattern here is the OPPOSITE of the scripts above.** The others are copied *only if the type is absent* (a second
+   copy is a `CS0101` duplicate-type error). `HudTheme.cs` is the token SSOT, and overwriting it unconditionally **is**
+   the machine that kills drift: a studio-side edit can never survive, so the plugin-assets file stays the only truth.
+   Confirm `PromptScene.Core.UI.HudTheme` loads.
 2. `assets-refresh`, then wait for `EditorApplication.isCompiling == false` and confirm the types loaded (a quick
    `script-execute` `AppDomain…GetType`). If `error CS`, fix before proceeding.
 
@@ -108,12 +133,36 @@ room that has content to bind (e.g. `PromptSceneRoom_1`, which has Ruler).
    `PCSS` — with a **`Panel` CHILD** that carries the bg Image + vertical layout + `Title`/`Buttons`(→hidden
    `ButtonTemplate`)/`Count`/`Hint`. ⚠️ The bg Image is on the **Panel, never the root Canvas** — a root Screen Space
    Overlay canvas is driven to full-screen, so a background on it would cover the whole screen; the Panel stays a small
-   corner box (~320px wide, buttons ~44px to match the room's existing toggles). For XR modes it also adds `XRWorldClicker`
+   corner box — width/spacing/font all from `HudTheme`; buttons `HudTheme.Space6` (=48px), body `FontSm`, weights
+   `WeightBody`/`WeightEmph` only. (44px is off the space scale and fails the U6/U7 lint.) The panel is built as nested
+   Images per the mockup — outer `Hairline` rim, `PanelFill` = `PanelTint` inset by `BorderW`, a `HairlineLit` top edge —
+   and **every text sits on a `Card` plate, never directly on `PanelTint`.** For XR modes it also adds `XRWorldClicker`
    under `===== SYSTEMS =====`. It saves the scene (authored/editable — only the runtime bits per §5 are code).
 3. Confirm the read-back: `canvas.renderMode=<WorldSpace|ScreenSpaceOverlay per mode>`, `rootHasNoBgImage=True`,
    `Panel bg Image=True`, `GraphicRaycaster=True`, `TrackedDeviceGraphicRaycaster=<expected for mode>`,
    `CrossPlatformRoomHud comp=True`, children under Panel present, `ButtonTemplate active=False`,
    `XRWorldClicker under SYSTEMS=<expected>`, and `ASSEMBLE-UI: OK`.
+
+### Phase 2.5 — ⛔ MEASURE the canvas scale. Do not assume it.
+Every angular-size judgement in U6/U7 (cap height in arcmin, tap target in degrees) divides by px-per-metre. If that
+number is wrong, **every legibility verdict is false while still reporting PASS** — the worst possible failure of a
+floor gate. So measure it, never derive it from intent:
+
+```csharp
+float pxPerMeter = 1f / canvas.transform.lossyScale.x;   // canvas = the HUD root Canvas
+```
+
+- Within **±5%** of `HudTheme.Legibility.PxPerMeter` → proceed. (`assemble_ui.cs` prints this as `PHASE 2.5 measured …`
+  and folds it into `ASSEMBLE-UI: OK`, so a drift cannot pass silently.)
+- Outside ±5% → **stop and report.** The fix is to update the token to the measured value (a `HudTheme` edit = approval)
+  and then redraw `hud-glass-v0.html` at the measured panel width. **Do not change the panel's dimensions** — a human
+  already click-verified that box with the XR sim controller.
+- `CapArcmin(HudTheme.FontMinPx) < MinCapArcmin` → **stop and report.** Raising the font floor is an approval matter,
+  not an autonomous fix.
+- Canvas or `lossyScale` unreadable → **stop and report.** Never proceed on a guessed scale.
+
+*Measured 2026-07-30 (AssembleRoom, MODE=CROSS): 384.6 px/m, panel 360×300 px = 0.936×0.780 m. The previous token
+value 1200 was an assumption and was off by 3.12×.*
 
 ### Phase 3 — QuickTest §6.5 + UI verify (build-studio-room §4)
 Set `ROOM`, `EXPECT_XR` (true for PCXR/Cross, false for PC/PCSS) and `EXPECT_SCREENSPACE` (true only for PCSS) in
@@ -139,6 +188,9 @@ Set `ROOM`, `EXPECT_XR` (true for PCXR/Cross, false for PC/PCSS) and `EXPECT_SCR
 | U3 | Generated rows = one per registry `Toggleable` (registry-driven, not hardcoded); `rows > 0`, `rows ≥ toggleables` | result file U3 |
 | U4 | Injected `Btn_ruler.onClick.Invoke()` flips `IsEnabled` then restores it — the **onClick → feature.SetEnabled path** (skipped-as-pass if the room has no Ruler: reusable part) | result file U4 |
 | U5 | Existing UI intact (canvases listed) + avatar `Desktop(Clone)` spawned = SYSTEMS unbroken | result file U5 |
+| U6 | **Type discipline** — every HUD text size ∈ the `HudTheme.Font*` set; every size `CapArcmin ≥ MinCapArcmin`; **≤ 2 distinct sizes** under `Panel`; realised weight ∈ `AllowedWeights`; **faux-bold (`FontStyle.Bold` / TMP `FontStyles.Bold`) = 0**. Font fallback logs a **WARN, not a FAIL** | result file U6 |
+| U7 | **Color / spacing / contrast discipline** — every `LayoutGroup` spacing+padding ∈ `SpaceScale` (or 0); **literal colors = 0** (every `Graphic.color` resolves to a `HudTheme` token, ε=1/255); **accent = one meaning** (visible `Accent` only on a `*__bar`/`*__state` whose FEATURE `IsEnabled == true`); every text's nearest opaque ancestor Image alpha ≥ `MinTextPlateAlpha`; every row's `TargetDeg ≥ MinTargetDeg` | result file U7 |
+| U8 | **Capture — EVIDENCE, NOT A VERDICT.** A head-on PNG at the design distance lands in `Temp/ps_ui_capture.png`. Deliberately excluded from PASS/FAIL: the floor is machine-judged, but **taste is not**, and pretending otherwise would be the dishonest part | result file U8 + the PNG |
 | — | `=== §5/§6 CROSS-PLATFORM-UI VERDICT: PASS ===` | result file |
 
 Failure map: HUD absent → assemble step didn't run / wrong scene. `_wired=false` → RoomCore not up (wait longer) or Core
