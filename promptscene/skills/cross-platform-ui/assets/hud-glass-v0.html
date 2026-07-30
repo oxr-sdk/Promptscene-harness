@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>PromptScene HUD · Glass v0</title>
+<style>
+/* ==========================================================================
+   PromptScene Room HUD — Glass v0 목업 = 디자인 계약
+   폰트: 펴진고딕(PyeojinGothic) — 7웨이트 중 400/600 두 개만 채택한다.
+        Light 300 · Bold 700 이상은 금지(아래 lint 규칙). 목업에 없는 웨이트를 쓰면
+        브라우저는 합성해 보여주지만 Unity는 그 FontAsset이 없어서 목업이 거짓말한다.
+        ⚠ @font-face 400/600 두 선언은 건드리지 말 것. 저장소 CSS 전체를 import하면
+          브라우저가 700을 진짜 Bold로 보여주는데 Unity엔 그 FontAsset이 없다.
+   규칙: .panel 안쪽 CSS는 전부 uGUI로 기계적으로 포팅된다.
+        .stage / .caption / .controls 는 3D 환경·시험 도구 흉내로 포팅 대상 아님.
+   금지: box-shadow, linear-gradient, backdrop-filter, grid, ::before/::after 구조,
+        rem/em/vh/vw, px 리터럴(토큰 var 만)  ← .panel 안쪽 한정
+   ──────────────────────────────────────────────────────────────────────────
+   치수(2026-07-30 실측으로 갱신): 이 목업은 실물 패널과 **같은 치수**여야 한다.
+   그래야 캡처 PNG ↔ 브라우저 스크린샷 대조 루프가 의미를 갖는다.
+     실측: 1f / canvas.transform.lossyScale.x = 384.6 px/m (AssembleRoom, MODE=CROSS)
+     패널: 360 x 300 px = 0.936 m x 0.780 m
+   이전 목업은 720px @1200 px/m 가정이었고 실측과 3.12배 어긋났다(= 각크기 판정이 거짓).
+   구조도 실물 트리에 맞췄다: 텍스트는 전부 .card 위에만 올라간다(PanelTint 위 직접 금지).
+   ========================================================================== */
+
+@font-face{font-family:'PyeojinGothic';font-weight:400;font-display:block;
+  src:url('https://cdn.jsdelivr.net/gh/Jihwan-Suh/PyeojinGothic/fonts/web/woff/PyeojinGothic-Regular.woff') format('woff');}
+@font-face{font-family:'PyeojinGothic';font-weight:600;font-display:block;
+  src:url('https://cdn.jsdelivr.net/gh/Jihwan-Suh/PyeojinGothic/fonts/web/woff/PyeojinGothic-SemiBold.woff') format('woff');}
+
+:root{
+  /* --- 간격: 4px 기준 6단 (그 밖의 수는 lint FAIL) --- */
+  --space-1:4px; --space-2:8px; --space-3:16px; --space-4:24px; --space-5:32px; --space-6:48px;
+
+  /* --- 타입: 크기는 한 패널에 2개까지. 최소 16px --- */
+  --font-sm:18px;  --font-md:24px;
+  /* 웨이트는 딱 두 개. 400=본문, 600=강조(활성 상태·제목). 그 사이 500은 안 씀 —
+     18px 근처에서 400과 500의 차이가 안 읽혀서 강조로 기능하지 않는다.
+     ⚠ Unity 현행은 동적 OS 폰트 폴백이라 웨이트가 1개뿐 → 강조는 색만으로 간다(WARN, FAIL 아님). */
+  --w-body:400;  --w-emph:600;
+
+  /* --- 색 --- */
+  --panel-tint:rgba(14,17,22,.62);      /* 틴트. 텍스트 안 올림 */
+  --card:rgba(18,22,28,.92);            /* 텍스트는 여기 위에만 */
+  --hairline:rgba(255,255,255,.16);
+  --hairline-lit:rgba(255,255,255,.28); /* 상단 엣지만 밝게 = 가짜 스펙큘러 */
+  --text-hi:#F2F4F8;
+  --text-lo:#9AA3B2;
+  --accent:#5AC8FA;                     /* 한 가지 의미(활성 상태)에만 */
+
+  /* --- 형태 --- */
+  --radius:16px;  --border-w:1px;  --bar-w:3px;
+
+  /* --- 실측 기하 (디자인 토큰 아님. 사람이 XR 시뮬로 클릭 검증한 박스) --- */
+  --panel-w:360px;  --panel-h:300px;    /* = 0.936 m x 0.780 m @ 384.6 px/m */
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'PyeojinGothic',sans-serif;font-weight:var(--w-body);-webkit-font-smoothing:antialiased;}
+
+/* ===== 포팅 대상 아님: 3D 환경 대역 ===================================== */
+.stage{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:100vh;padding:40px 20px;gap:20px;background:#1a1d24;}
+.stage.room  {background:#191c22 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="%23191c22"/><path d="M0 119h120M119 0v120" stroke="%23262b34" stroke-width="2"/></svg>');}
+.stage.bright{background:#cfd6e0 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" fill="%23dfe5ee"/><circle cx="40" cy="40" r="34" fill="%23f7f9fc"/><rect x="90" y="70" width="60" height="80" fill="%23bcc6d4"/></svg>');}
+.stage.busy  {background:#3a2f4a url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90"><rect width="90" height="90" fill="%233a2f4a"/><circle cx="22" cy="22" r="16" fill="%23e0663f"/><rect x="50" y="46" width="34" height="34" fill="%2337c07a"/><path d="M0 70h90" stroke="%23f2e15c" stroke-width="6"/></svg>');}
+.controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;font-size:13px;}
+.controls button{font-family:inherit;font-size:13px;padding:6px 12px;border:1px solid #4a5160;
+  border-radius:6px;background:#22262f;color:#c8cfda;cursor:pointer;}
+.controls button.on{border-color:#5AC8FA;color:#5AC8FA;}
+.caption{font-size:12px;line-height:1.6;color:#8f97a4;text-align:center;max-width:600px;}
+.blur-on .panel{backdrop-filter:blur(24px) saturate(1.4);}
+
+/* ===== 여기부터 포팅 대상 (uGUI 대응 주석 포함) ========================= */
+
+/* .panel → Panel(Image=Hairline, 9-slice) > PanelFill(PanelTint, inset border-w)
+             + PanelEdge(HairlineLit, 상단 스트립) + Content(VerticalLayoutGroup) */
+.panel{
+  display:flex; flex-direction:column;           /* → Content 의 VerticalLayoutGroup */
+  width:var(--panel-w);                          /* → 360 canvas px = 0.936 m @384.6 px/m */
+  min-height:var(--panel-h);                     /* → 300 canvas px = 0.780 m */
+  padding:var(--space-3);                        /* → LayoutGroup padding 16 */
+  gap:var(--space-2);                            /* → spacing 8 */
+  background:var(--panel-tint);                  /* → PanelFill */
+  border-radius:var(--radius);                   /* → HudSprites.RoundedRect(16) */
+  border:var(--border-w) solid var(--hairline);  /* → 바깥 Panel Image 1장 */
+  border-top-color:var(--hairline-lit);          /* → PanelEdge Image 1장 추가 */
+  color:var(--text-hi);
+}
+
+/* .card → 텍스트가 올라가는 거의 불투명한 안쪽 판. 대비를 여기서 확보한다.
+           실물의 TitleCard / CountCard / HintCard 에 1:1 대응(테두리 없음).
+   ⚠ min-height 만 두고 height 를 고정하지 않는 이유: 줄바꿈된 2줄 텍스트가 카드 밖으로 튀어나와
+     PanelTint 위에 렌더되면 "텍스트는 Card 위에만" 규율이 픽셀 단위로 깨진다(2026-07-30 캡처에서 실측).
+     실물도 카드가 자체 VerticalLayoutGroup(padding Space2)으로 내용에 맞춰 자란다. */
+.card{display:flex;flex-direction:column;justify-content:center;
+  padding:var(--space-2);                        /* → 카드 자체 LayoutGroup padding 8 */
+  background:var(--card);border-radius:var(--radius);}
+.card--title{min-height:var(--space-5);}         /* → LayoutElement minHeight Space5 (실측 h=43) */
+.card--count{min-height:var(--space-4);}         /* → LayoutElement minHeight Space4 (실측 h=36) */
+.card--hint {min-height:var(--space-5);}         /* → LayoutElement minHeight Space5, 2줄로 자람 (실측 h=57) */
+
+.panel__title{font-size:var(--font-md);font-weight:var(--w-emph);color:var(--text-hi);}
+.panel__count{font-size:var(--font-sm);font-weight:var(--w-body);color:var(--text-lo);}
+.panel__hint {font-size:var(--font-sm);font-weight:var(--w-body);color:var(--text-lo);}
+
+/* .rows → Buttons (VerticalLayoutGroup spacing Space2 + ContentSizeFitter) */
+.rows{display:flex;flex-direction:column;gap:var(--space-2);}
+
+/* .row → ButtonTemplate(Image=Hairline) > RowFill(Image=Card, inset border-w) > Bar + Label
+          높이 = Space6(48). 44는 스케일 밖의 수라 lint에 걸린다. */
+.row{display:flex;flex-direction:row;align-items:center;
+  height:var(--space-6);
+  padding:0 var(--space-2);gap:var(--space-2);
+  background:var(--card);                        /* → RowFill */
+  border:var(--border-w) solid var(--hairline);  /* → 바깥 ButtonTemplate Image */
+  border-radius:var(--radius);
+  font-size:var(--font-sm);font-weight:var(--w-body);color:var(--text-lo);
+  cursor:pointer;}
+.row:hover{background:rgba(255,255,255,.05);}    /* → RowHover 토큰 */
+
+/* 액센트는 여기 한 가지 의미(활성)에만 나타난다 — 실물도 `…__bar` Image 한 곳뿐. */
+.row__bar{flex:none;width:var(--bar-w);align-self:stretch;
+  margin:var(--space-2) 0;border-radius:var(--bar-w);
+  background:rgba(0,0,0,0);}                     /* OFF = 알파 0 (색은 그대로 accent) */
+.row__label{flex-grow:1;}
+.row.is-on{color:var(--text-hi);font-weight:var(--w-emph);}
+.row.is-on .row__bar{background:var(--accent);}
+
+/* 파괴적 동작이라 액센트 안 씀 — 같은 Hairline 테두리 유령 행. is-on 이 절대 안 붙는다. */
+.row--ghost{color:var(--text-lo);}
+</style>
+</head>
+<body>
+<div class="stage room" id="stage">
+
+  <div class="panel">
+    <div class="card card--title"><div class="panel__title">PromptScene — 도구</div></div>
+
+    <div class="rows">
+      <div class="row is-on"><div class="row__bar"></div><div class="row__label">룰러 : ON</div></div>
+      <div class="row"><div class="row__bar"></div><div class="row__label">채팅 : OFF</div></div>
+      <div class="row row--ghost"><div class="row__bar"></div><div class="row__label">측정 지우기</div></div>
+    </div>
+
+    <div class="card card--count"><div class="panel__count">공유 측정: 0 개</div></div>
+    <div class="card card--hint"><div class="panel__hint">도구 ON → 포인팅/클릭으로 사용하고 다른 참가자와 공유됩니다.</div></div>
+  </div>
+
+  <!-- 포팅 대상 아님: 최악 배경 대비 시험 도구 -->
+  <div class="controls">
+    <button class="on" data-bg="room">어두운 룸</button>
+    <button data-bg="bright">밝은 창가</button>
+    <button data-bg="busy">잡다한 배경</button>
+    <button id="blur">⛔ 블러 미리보기 (청구서 항목)</button>
+  </div>
+  <div class="caption">
+    펴진고딕 400/600 · <b>360&times;300 px = 0.936 &times; 0.780 m @ 384.6 px/m</b> (실측, 가정 아님).<br>
+    설계 기준 1.5 m에서 본문 18px &asymp; 캡높이 77&prime; / 제목 24px &asymp; 103&prime; (하한 20&prime;).
+    탭 타깃 48px &asymp; 4.77&deg; (하한 1.5&deg;).<br>
+    현행 배치는 (0, 1.6, 2.5) = 실 관찰거리 ~2.5 m → 본문 18px &asymp; 46&prime;. 하한은 여전히 통과.<br>
+    행을 눌러 토글하세요. 배경을 바꿔도 텍스트가 읽히는지 = <b>저점 게이트</b>.
+    액센트(<span style="color:#5AC8FA">■</span>)는 <b>활성 상태 한 의미</b>에만 나타난다.
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.row').forEach(function(r){
+  if (r.classList.contains('row--ghost')) return;   // 파괴적 동작 행은 상태가 없다
+  r.addEventListener('click',function(){
+    var on = r.classList.toggle('is-on');
+    var lbl = r.querySelector('.row__label');
+    lbl.textContent = lbl.textContent.replace(/ : (ON|OFF)$/, ' : ' + (on ? 'ON' : 'OFF'));
+  });
+});
+var stage=document.getElementById('stage');
+document.querySelectorAll('.controls button[data-bg]').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.controls button[data-bg]').forEach(function(x){x.classList.remove('on');});
+    b.classList.add('on');
+    var blur=stage.classList.contains('blur-on');
+    stage.className='stage '+b.dataset.bg+(blur?' blur-on':'');
+  });
+});
+document.getElementById('blur').addEventListener('click',function(){
+  this.classList.toggle('on'); stage.classList.toggle('blur-on');
+});
+</script>
+</body>
+</html>

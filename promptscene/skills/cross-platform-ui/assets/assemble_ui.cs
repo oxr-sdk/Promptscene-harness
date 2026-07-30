@@ -3,14 +3,42 @@
 // (XRI world-click: XRWorldClicker + SubmitExternalRay, shared Near-Far interactor). Contract §1 (5-layer / registry).
 //
 // Run via MCP script-execute (className=PS_AssembleUI, methodName=Run) AFTER `scene-open <ROOM> Single` AND after
-// CrossPlatformRoomHud.cs (+ XRWorldClicker.cs if absent) have compiled into App.HotUpdate (isCompiling==false).
+// HudTheme.cs + CrossPlatformRoomHud.cs (+ XRWorldClicker.cs if absent) have compiled into App.HotUpdate
+// (isCompiling==false).
 //
-// STRUCTURE (standard uGUI — canvas ≠ panel):
-//   RoomHud   (Canvas + CanvasScaler + GraphicRaycaster [+ TrackedDeviceGraphicRaycaster] + CrossPlatformRoomHud binder)
-//     └ Panel (Image bg + VerticalLayoutGroup [+ ContentSizeFitter for Screen Space])   <- the small visible box
-//         ├ Title (Text) / Buttons (container → ButtonTemplate, INACTIVE) / Count (Text) / Hint (Text)
+// ── DESIGN TOKENS: this file authors NO literal colour and NO literal design px. ─────────────────────────────────
+// Every colour, size, spacing, radius and weight is read from `PromptScene.Core.UI.HudTheme` (the frozen glass-v0
+// theme, copied ONE-WAY from the plugin assets — see SKILL.md Phase 1b). script-execute compiles against the loaded
+// App.HotUpdate assembly, so the tokens are *referenced*, not duplicated: change the theme and this file follows.
+// If a value you need is not in HudTheme, do NOT write it here — propose a token and stop (SKILL.md ground rules).
+//
+// The ONLY numeric literals below are MEASURED GEOMETRY, not design values, and they are deliberately frozen:
+//   HUD_SIZE / HUD_POS — the panel box + placement a human already click-verified with the XR sim controller.
+//   HUD_SCALE is NOT a literal any more: it is derived as 1 / HudTheme.Legibility.PxPerMeter, so the measured
+//   px-per-metre in the theme now *drives* the canvas scale instead of merely describing it (drift impossible).
+//
+// STRUCTURE (standard uGUI — canvas ≠ panel; borders are Image nesting, per the glass-v0 mockup):
+//   RoomHud   (Canvas + CanvasScaler + GraphicRaycaster [+ TrackedDeviceGraphicRaycaster] + CrossPlatformRoomHud)
+//     └ Panel        Image = Hairline  (rounded, Sliced)                  <- OUTER 1px border
+//         ├ PanelFill  Image = PanelTint (rounded, Sliced), inset BorderW <- the glass tint. NO TEXT ON THIS.
+//         ├ PanelEdge  Image = HairlineLit, top strip h = BorderW         <- fake specular (top edge only)
+//         └ Content    VerticalLayoutGroup(padding Space3, spacing Space2)
+//             ├ TitleCard  Image = Card  → Title (FontMd, TextHi)
+//             ├ Buttons    VerticalLayoutGroup(spacing Space2) + ContentSizeFitter
+//             │   └ ButtonTemplate  Image = Hairline + Button + LayoutElement h = Space6   (INACTIVE)
+//             │       └ RowFill     Image = Card, inset BorderW
+//             │           ├ Bar     Image = Accent (alpha 0 when OFF), w = BarW   <- the ONE accent meaning
+//             │           └ Label   Text  (FontSm)
+//             ├ CountCard  Image = Card  → Count (FontSm, TextLo)
+//             └ HintCard   Image = Card  → Hint  (FontSm, TextLo)
+//   Text ALWAYS sits on a Card (alpha .92), never on PanelTint (alpha .62) — that is what keeps contrast from
+//   collapsing against a bright or busy room background (verify U7 "text plate alpha").
 //   The panel is a CHILD so a Screen Space Overlay ROOT canvas (which Unity drives to full-screen) is NOT itself the
-//   background — the panel stays a small corner box. Button sizes match the room's existing toggles (~44px h / 22pt).
+//   background — the panel stays a small corner box.
+//
+// ⚠ Rounded sprites are procedural (HudSprites) with HideFlags.HideAndDontSave → they do NOT serialize into the saved
+//   scene. We assign them here for immediate editor preview AND the binder re-assigns them every Start, so the
+//   RUNTIME (the thing we verify) always has the radius even after a scene reload. Colours/alpha do persist.
 //
 // MODE (set below) — matches the add-component §6 options; all are cross-platform-READY structure, live-verified to
 // desktop mouse + XR Interaction Simulator CONTROLLER (real devices = V2):
@@ -31,22 +59,20 @@ using System.Reflection;
 using System.Text;
 using UnityEngine.SceneManagement;
 using UnityEditor.SceneManagement;
+using PromptScene.Core.UI;            // HudTheme / HudSprites — the token SSOT
 
 public class PS_AssembleUI {
-    const string ROOM = "PromptSceneRoom_1";   // <-- target room leaf (scene must be open Single)
+    const string ROOM = "AssembleRoom";        // <-- target room leaf (scene must be open Single)
     const string MODE = "CROSS";               // "PC" | "PCSS" | "PCXR" | "CROSS"
     const string HUD_NAME = "CrossPlatformRoomHud";
 
-    // World Space canvas placement (PC / PCXR / CROSS)
-    static readonly Vector3 HUD_POS   = new Vector3(0f, 1.6f, 2.5f);
-    static readonly Vector2 HUD_SIZE  = new Vector2(360f, 300f);
-    const float HUD_SCALE = 0.0026f;            // metres per canvas unit → ~0.94m x 0.78m
-    // Screen Space Overlay panel (PCSS) — small top-left box, height auto-fit
-    const float SS_PANEL_WIDTH = 320f;
-    static readonly Vector2 SS_PANEL_PAD = new Vector2(16f, 16f);
-    // compact look, matched to the room's existing toggles (PlayerList/Leave = 45px h, 24pt)
-    const float BTN_H = 44f;  const int BTN_FONT = 22;
-    const int TITLE_FONT = 22; const int COUNT_FONT = 15; const int HINT_FONT = 14;
+    // ── MEASURED GEOMETRY (frozen: a human click-verified this box with the XR sim controller). NOT design tokens. ──
+    static readonly Vector2 HUD_SIZE = new Vector2(360f, 300f);          // canvas px  → 0.936 m x 0.780 m
+    static readonly Vector3 HUD_POS  = new Vector3(0f, 1.6f, 2.5f);      // world placement
+    // metres per canvas unit, DERIVED from the measured token (STEP 0): 1 / 384.6 = 0.0026
+    static float HudScale => 1f / HudTheme.Legibility.PxPerMeter;
+    // Screen Space Overlay panel (PCSS) — small top-left box, height auto-fit. Width = the same measured panel width.
+    static float SsPanelWidth => HUD_SIZE.x;
 
     static bool WantsXR      => MODE == "PCXR" || MODE == "CROSS";
     static bool ScreenSpace  => MODE == "PCSS";
@@ -64,6 +90,70 @@ public class PS_AssembleUI {
         if(t==null){ Debug.LogError("[PS_AssembleUI] type not found (not compiled?): "+typeName); return null; }
         var existing = go.GetComponent(t);
         return existing != null ? existing : go.AddComponent(t);
+    }
+
+    // ── token-only builders ───────────────────────────────────────────────────────────────────────
+    /// <summary>Stretch a RectTransform over its parent, inset by `pad` px on every side.</summary>
+    static RectTransform Stretch(GameObject go, float pad = 0f){
+        var rt = (RectTransform)go.transform;
+        rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+        rt.offsetMin = new Vector2(pad, pad); rt.offsetMax = new Vector2(-pad, -pad);
+        return rt;
+    }
+
+    /// <summary>An Image tinted with a theme colour. `radius` &lt; 0 = square (no sprite).</summary>
+    static Image MkImage(string name, GameObject parent, Color tint, int radius){
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent.transform, false);
+        var img = go.AddComponent<Image>();
+        img.color = tint;
+        if (radius >= 0) { img.sprite = HudSprites.RoundedRect(radius); img.type = Image.Type.Sliced; }
+        return img;
+    }
+
+    /// <summary>
+    /// A Card plate — the ONLY surface text is allowed on.
+    /// The card carries its own VerticalLayoutGroup (padding = Space2) and NO fixed height, so it reports a
+    /// preferred height derived from its wrapped text and the parent Content group sizes it to fit.
+    /// ⚠ Why not a fixed height: a fixed-height card lets a 2-line label spill OUT of the plate onto PanelTint —
+    /// the U7 "text plate" rule then passes on hierarchy while the pixels say otherwise (caught 2026-07-30 in the
+    /// U8 capture: the wrapped hint's 2nd line rendered on bare tint). Content-driven height makes the plate rule
+    /// geometrically true, and U7 now also asserts containment.
+    /// </summary>
+    static GameObject MkCard(string name, GameObject parent, int minHeightToken){
+        var img = MkImage(name, parent, HudTheme.Card, HudTheme.Radius);
+        var vlg = img.gameObject.AddComponent<VerticalLayoutGroup>();
+        vlg.padding = new RectOffset(HudTheme.Space2, HudTheme.Space2, HudTheme.Space2, HudTheme.Space2);
+        vlg.spacing = 0;
+        vlg.childControlWidth = true;  vlg.childControlHeight = true;
+        vlg.childForceExpandWidth = true; vlg.childForceExpandHeight = false;
+        var le = img.gameObject.AddComponent<LayoutElement>();
+        le.minHeight = minHeightToken;              // floor only — the card grows past it when the text wraps
+        return img.gameObject;
+    }
+
+    /// <summary>
+    /// Legacy uGUI Text (build-studio-room §5: studio ships no Korean TMP asset → dynamic OS font at runtime).
+    /// fontStyle is ALWAYS Normal — faux-bold is banned by the theme; emphasis is colour (+ real 600 weight once a
+    /// PyeojinGothic FontAsset exists, which is a baked-base item outside this skill).
+    /// </summary>
+    /// <param name="stretch">
+    /// true  = pin the text over its parent (used inside a fixed-height row, where the parent supplies the padding).
+    /// false = leave it a plain LAYOUT CHILD so its wrapped preferred height drives the enclosing Card's height.
+    /// </param>
+    static Text MkText(string name, GameObject parent, int fontToken, Color color, TextAnchor anchor, bool stretch){
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent.transform, false);
+        var txt = go.AddComponent<Text>();
+        txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); // replaced by dynamic OS font at runtime
+        txt.fontSize = fontToken;
+        txt.fontStyle = FontStyle.Normal;
+        txt.color = color;
+        txt.alignment = anchor;
+        txt.horizontalOverflow = HorizontalWrapMode.Wrap;
+        txt.verticalOverflow = VerticalWrapMode.Overflow;
+        if (stretch) Stretch(go, HudTheme.Space2);   // inner padding = one space step, never a raw number
+        return txt;
     }
 
     public static void Run(){
@@ -93,69 +183,97 @@ public class PS_AssembleUI {
             canvas.renderMode = RenderMode.WorldSpace;
             hudRT.sizeDelta = HUD_SIZE;
             hudRT.position = HUD_POS;
-            hudRT.localScale = Vector3.one * HUD_SCALE;
+            hudRT.localScale = Vector3.one * HudScale;      // derived from HudTheme.Legibility.PxPerMeter
         }
         hud.AddComponent<CanvasScaler>();
         hud.AddComponent<GraphicRaycaster>();                            // desktop mouse (InputSystemUIInputModule)
         if(WantsXR) AddByType(hud, "UnityEngine.XR.Interaction.Toolkit.UI.TrackedDeviceGraphicRaycaster"); // XR ray/poke
 
-        // ── PANEL (the small visible box) ──
-        var panel = new GameObject("Panel", typeof(RectTransform));
-        panel.transform.SetParent(hud.transform, false);
+        // ── PANEL = the small visible box. Image nesting makes the 1px border (STEP 2.3):
+        //    Panel(Hairline) > PanelFill(PanelTint, inset BorderW) + PanelEdge(HairlineLit, top strip)
+        var panelImg = MkImage("Panel", hud, HudTheme.Hairline, HudTheme.Radius);
+        var panel = panelImg.gameObject;
         var panelRT = (RectTransform)panel.transform;
-        var bg = panel.AddComponent<Image>();
-        bg.color = new Color(0.06f, 0.07f, 0.10f, 0.86f);
-        var vlg = panel.AddComponent<VerticalLayoutGroup>();
-        vlg.padding = new RectOffset(12,12,12,12); vlg.spacing = 6;
-        vlg.childControlWidth = true; vlg.childControlHeight = true;
-        vlg.childForceExpandWidth = true; vlg.childForceExpandHeight = false;
         if(ScreenSpace){
             // small box pinned top-left, height auto-fit to content
             panelRT.anchorMin = new Vector2(0f,1f); panelRT.anchorMax = new Vector2(0f,1f); panelRT.pivot = new Vector2(0f,1f);
-            panelRT.sizeDelta = new Vector2(SS_PANEL_WIDTH, 0f);
-            panelRT.anchoredPosition = new Vector2(SS_PANEL_PAD.x, -SS_PANEL_PAD.y);
+            panelRT.sizeDelta = new Vector2(SsPanelWidth, 0f);
+            panelRT.anchoredPosition = new Vector2(HudTheme.Space3, -HudTheme.Space3);
             panel.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
         } else {
-            // stretch to fill the World Space canvas box
-            panelRT.anchorMin = Vector2.zero; panelRT.anchorMax = Vector2.one; panelRT.offsetMin = Vector2.zero; panelRT.offsetMax = Vector2.zero;
+            Stretch(panel);                                  // fill the World Space canvas box
         }
 
-        Text MkText(string name, GameObject parent, int size, FontStyle style, float minH){
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent.transform, false);
-            var txt = go.AddComponent<Text>();
-            txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); // replaced by dynamic OS font at runtime
-            txt.fontSize = size; txt.fontStyle = style; txt.color = Color.white;
-            txt.alignment = TextAnchor.MiddleLeft; txt.horizontalOverflow = HorizontalWrapMode.Wrap; txt.verticalOverflow = VerticalWrapMode.Overflow;
-            var le = go.AddComponent<LayoutElement>(); le.minHeight = minH;
-            return txt;
-        }
+        // glass tint, inset by the border width so the outer Hairline reads as a 1px rim
+        var fill = MkImage("PanelFill", panel, HudTheme.PanelTint, HudTheme.Radius);
+        Stretch(fill.gameObject, HudTheme.BorderW);
 
-        MkText("Title", panel, TITLE_FONT, FontStyle.Bold, 28f).text = "PromptScene — 도구";
+        // top edge only = fake specular. Drawn after PanelFill so it sits on top.
+        var edge = MkImage("PanelEdge", panel, HudTheme.HairlineLit, -1);
+        var edgeRT = (RectTransform)edge.transform;
+        edgeRT.anchorMin = new Vector2(0f,1f); edgeRT.anchorMax = new Vector2(1f,1f); edgeRT.pivot = new Vector2(0.5f,1f);
+        edgeRT.offsetMin = new Vector2(HudTheme.Radius, -HudTheme.BorderW*2);
+        edgeRT.offsetMax = new Vector2(-HudTheme.Radius, -HudTheme.BorderW);
+
+        // ── CONTENT (the layout column). Kept separate from Panel so PanelFill/PanelEdge are not layout children. ──
+        var content = new GameObject("Content", typeof(RectTransform));
+        content.transform.SetParent(panel.transform, false);
+        Stretch(content, HudTheme.BorderW);
+        var vlg = content.AddComponent<VerticalLayoutGroup>();
+        vlg.padding = new RectOffset(HudTheme.Space3, HudTheme.Space3, HudTheme.Space3, HudTheme.Space3);
+        vlg.spacing = HudTheme.Space2;
+        vlg.childControlWidth = true;  vlg.childControlHeight = true;
+        vlg.childForceExpandWidth = true; vlg.childForceExpandHeight = false;
+        if(ScreenSpace) content.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        // Title — the one place FontMd appears (2 sizes per panel max: FontMd + FontSm)
+        var titleCard = MkCard("TitleCard", content, HudTheme.Space5);
+        MkText("Title", titleCard, HudTheme.FontMd, HudTheme.TextHi, TextAnchor.MiddleLeft, false).text = "PromptScene — 도구";
 
         // Buttons container (runtime rows cloned in here by the binder)
         var buttons = new GameObject("Buttons", typeof(RectTransform));
-        buttons.transform.SetParent(panel.transform, false);
+        buttons.transform.SetParent(content.transform, false);
         var bvlg = buttons.AddComponent<VerticalLayoutGroup>();
-        bvlg.spacing = 6; bvlg.childControlWidth=true; bvlg.childControlHeight=true;
+        bvlg.spacing = HudTheme.Space2;
+        bvlg.childControlWidth=true; bvlg.childControlHeight=true;
         bvlg.childForceExpandWidth=true; bvlg.childForceExpandHeight=false;
         buttons.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-        // ButtonTemplate (INACTIVE — binder clones one per toggleable content), compact ~44px
-        var tmpl = new GameObject("ButtonTemplate", typeof(RectTransform));
-        tmpl.transform.SetParent(buttons.transform, false);
-        var tImg = tmpl.AddComponent<Image>(); tImg.color = new Color(0.18f,0.36f,0.62f,1f);
-        var tBtn = tmpl.AddComponent<Button>(); tBtn.targetGraphic = tImg;
-        var tLE  = tmpl.AddComponent<LayoutElement>(); tLE.minHeight = BTN_H; tLE.preferredHeight = BTN_H;
-        var tLbl = MkText("Label", tmpl, BTN_FONT, FontStyle.Bold, BTN_H);
-        tLbl.alignment = TextAnchor.MiddleCenter; tLbl.text = "…";
-        var lblRT = (RectTransform)tLbl.transform; lblRT.anchorMin=Vector2.zero; lblRT.anchorMax=Vector2.one; lblRT.offsetMin=Vector2.zero; lblRT.offsetMax=Vector2.zero;
+        // ── ButtonTemplate (INACTIVE — binder clones one per toggleable content) ──
+        //    Outer = Hairline border, RowFill = Card (the text plate), Bar = the single accent meaning.
+        var tmplImg = MkImage("ButtonTemplate", buttons, HudTheme.Hairline, HudTheme.Radius);
+        var tmpl = tmplImg.gameObject;
+        var tBtn = tmpl.AddComponent<Button>();
+        var tLE  = tmpl.AddComponent<LayoutElement>();
+        tLE.minHeight = HudTheme.Space6; tLE.preferredHeight = HudTheme.Space6;   // 48px tap target (44 is off-scale)
+
+        var rowFill = MkImage("RowFill", tmpl, HudTheme.Card, HudTheme.Radius);
+        Stretch(rowFill.gameObject, HudTheme.BorderW);
+        tBtn.targetGraphic = rowFill;                       // tint the card, not the 1px rim
+
+        // accent bar: left edge, width BarW, alpha 0 until the feature is enabled (binder drives it)
+        var bar = MkImage("Bar", rowFill.gameObject, HudTheme.Accent, HudTheme.BarW);
+        var barRT = (RectTransform)bar.transform;
+        barRT.anchorMin = new Vector2(0f,0f); barRT.anchorMax = new Vector2(0f,1f); barRT.pivot = new Vector2(0f,0.5f);
+        barRT.offsetMin = new Vector2(HudTheme.Space2, HudTheme.Space2);
+        barRT.offsetMax = new Vector2(HudTheme.Space2 + HudTheme.BarW, -HudTheme.Space2);
+        var barCol = HudTheme.Accent; barCol.a = 0f; bar.color = barCol;           // OFF by default
+
+        var tLbl = MkText("Label", rowFill.gameObject, HudTheme.FontSm, HudTheme.TextLo, TextAnchor.MiddleLeft, true);
+        tLbl.text = "…";
+        // leave room for the bar on the left
+        var lblRT = (RectTransform)tLbl.transform;
+        lblRT.offsetMin = new Vector2(HudTheme.Space2 + HudTheme.BarW + HudTheme.Space2, HudTheme.Space1);
+        lblRT.offsetMax = new Vector2(-HudTheme.Space2, -HudTheme.Space1);
         tmpl.SetActive(false);
 
-        MkText("Count", panel, COUNT_FONT, FontStyle.Normal, 20f).text = "공유 측정: 0 개";
-        MkText("Hint",  panel, HINT_FONT, FontStyle.Italic, 32f).text = "도구 ON → 포인팅/클릭으로 사용하고 공유됩니다.";
+        // Count (Ruler-only; the binder hides the whole card when no Ruler is present) + Hint
+        var countCard = MkCard("CountCard", content, HudTheme.Space4);
+        MkText("Count", countCard, HudTheme.FontSm, HudTheme.TextLo, TextAnchor.MiddleLeft, false).text = "공유 측정: 0 개";
+        var hintCard = MkCard("HintCard", content, HudTheme.Space5);   // floor; grows to fit the wrapped 2 lines
+        MkText("Hint",  hintCard, HudTheme.FontSm, HudTheme.TextLo, TextAnchor.UpperLeft, false).text = "도구 ON → 포인팅/클릭으로 사용하고 공유됩니다.";
 
-        // the reusable hot binder on the ROOT canvas (added by reflection — this editor script can't compile-ref App.HotUpdate)
+        // the reusable hot binder on the ROOT canvas (added by reflection — the type name carries no namespace)
         AddByType(hud, "CrossPlatformRoomHud");
 
         // ── XR world-click bridge under SYSTEMS (XR-capable modes only) ────
@@ -174,22 +292,29 @@ public class PS_AssembleUI {
         bool saved = EditorSceneManager.SaveScene(scn);
 
         // ── read-back ──────────────────────────────────────────────────────
+        Canvas.ForceUpdateCanvases();
         var tdgrType = FindType("UnityEngine.XR.Interaction.Toolkit.UI.TrackedDeviceGraphicRaycaster");
         var expectMode = ScreenSpace ? RenderMode.ScreenSpaceOverlay : RenderMode.WorldSpace;
         bool modeOk = canvas.renderMode == expectMode;
         bool rootHasNoImage = hud.GetComponent<Image>()==null;   // root canvas must NOT be a background
+        float pxPerMeter = ScreenSpace ? HudTheme.Legibility.PxPerMeter : 1f / canvas.transform.lossyScale.x;
+        bool scaleOk = ScreenSpace || Mathf.Abs(pxPerMeter - HudTheme.Legibility.PxPerMeter) <= HudTheme.Legibility.PxPerMeter * 0.05f;
+
         sb.AppendLine("MODE="+MODE+" saved="+saved);
         sb.AppendLine("hud '"+HUD_NAME+"' under UI="+(hud.transform.parent==ui.transform));
         sb.AppendLine("canvas.renderMode="+canvas.renderMode+" (expect "+expectMode+")  rootHasNoBgImage="+rootHasNoImage);
-        sb.AppendLine("Panel bg Image="+(panel.GetComponent<Image>()!=null)+"  panel width="+SS_PANEL_WIDTH+(ScreenSpace?" (ScreenSpace, height auto-fit)":" (WorldSpace stretch)"));
+        sb.AppendLine("Panel bg Image="+(panel.GetComponent<Image>()!=null)+"  panelPx="+panelRT.rect.width.ToString("F0")+"x"+panelRT.rect.height.ToString("F0"));
+        sb.AppendLine("PHASE 2.5 measured pxPerMeter="+pxPerMeter.ToString("F1")+" vs token "+HudTheme.Legibility.PxPerMeter+" (±5% → "+(scaleOk?"OK":"STOP & REPORT")+")");
+        sb.AppendLine("border nesting: PanelFill="+(panel.transform.Find("PanelFill")!=null)+" PanelEdge="+(panel.transform.Find("PanelEdge")!=null)+" Content="+(panel.transform.Find("Content")!=null));
+        sb.AppendLine("cards: TitleCard/CountCard/HintCard="+(content.transform.Find("TitleCard")!=null)+"/"+(content.transform.Find("CountCard")!=null)+"/"+(content.transform.Find("HintCard")!=null));
         sb.AppendLine("GraphicRaycaster="+(hud.GetComponent<GraphicRaycaster>()!=null));
         sb.AppendLine("TrackedDeviceGraphicRaycaster="+(tdgrType!=null && hud.GetComponent(tdgrType)!=null)+" (expect "+WantsXR+")");
         sb.AppendLine("CrossPlatformRoomHud comp="+(hud.GetComponent(FindType("CrossPlatformRoomHud"))!=null));
-        sb.AppendLine("children under Panel: Title="+(panel.transform.Find("Title")!=null)+" Buttons="+(panel.transform.Find("Buttons")!=null)
-                     +" ButtonTemplate="+(buttons.transform.Find("ButtonTemplate")!=null)+"(active="+tmpl.activeSelf+" expect False, h="+BTN_H+")"
-                     +" Count="+(panel.transform.Find("Count")!=null)+" Hint="+(panel.transform.Find("Hint")!=null));
+        sb.AppendLine("row: ButtonTemplate(active="+tmpl.activeSelf+" expect False) h="+HudTheme.Space6+" RowFill="+(tmpl.transform.Find("RowFill")!=null)
+                     +" Bar="+(rowFill.transform.Find("Bar")!=null)+" Label="+(rowFill.transform.Find("Label")!=null));
+        sb.AppendLine("fonts: Title="+HudTheme.FontMd+" body="+HudTheme.FontSm+" (2 sizes max)  tapTarget="+HudTheme.Legibility.CapArcmin(HudTheme.FontSm).ToString("F0")+"' cap");
         sb.AppendLine("XRWorldClicker under SYSTEMS="+xrClickerPlaced+" (expect "+WantsXR+")");
-        bool ok = (hud.GetComponent(FindType("CrossPlatformRoomHud"))!=null) && (WantsXR==xrClickerPlaced) && modeOk && rootHasNoImage && saved;
+        bool ok = (hud.GetComponent(FindType("CrossPlatformRoomHud"))!=null) && (WantsXR==xrClickerPlaced) && modeOk && rootHasNoImage && saved && scaleOk;
         sb.AppendLine("=== ASSEMBLE-UI: "+(ok?"OK":"CHECK")+" ===");
         Debug.Log("[PS_AssembleUI]\n"+sb);
     }
