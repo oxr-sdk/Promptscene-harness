@@ -115,6 +115,18 @@ reference-call **assemble-room (skeleton) + add-component (content)**.
 
 ## Ground rules
 - studio MCP (`ai-game-developer`) must be connected. Drive Unity via MCP; do not hand-edit `.unity`.
+- ⛔ **부트 흐름 3대 함정은 `docs/build-studio-room.md` §4.1~4.3 이 SSOT다.** 여기서 반복하지 않는다(사본은 뒤처진다).
+  요약만: ① `roomSceneKey`가 없는 룸 → 정지  ② **룸 씬이 additive 로 열린 채 ▶ 하면 스폰이 빠진다**(룸·RoomCore·HUD는
+  올라오는데 아바타·카메라만 없음) → 정지  ③ 키는 **Unity 씬 이름(leaf)** 이어야 한다 — `ResolveAddress()`가 주는
+  등록 주소를 그대로 쓰면 안 된다(주소 형태면 FishNet `GetSceneByName()`이 실패한다). **등록 자체를** leaf 주소 +
+  `RoomScene` 라벨로 맞춘다(§4.2). 세 개 다 Setup 진입 전에 단정한다.
+- ⚠️ **에이전트 의무 2개** (§4.1/§4.3): 룸 씬을 편집했으면 넘기기 전에 `scene-open QuickStart` **Single**로 되돌린다.
+  그리고 `Selection.activeObject=null`로 선택을 해제한다(Inspector가 포커스를 잡으면 사람이 WASD를 눌러도 안 움직인다).
+  사람에게 이동을 부탁할 때는 **Game 뷰 중앙~우하단을 클릭한 뒤 길게** 누르라고 안내한다 — ⛔ 좌상단은 FishNet 데모 HUD의
+  `Start/Stop Client` 버튼이라 클릭하면 부트가 깨진다(§4.1 ④ / §4.3).
+- ℹ️ `No cameras rendering`은 **에디트 모드 전체와 ▶ 직후 수십 초 동안 정상**이다(실측: 방해 없는 부트 t≈27초) — `QuickStart`·룸 씬 모두 카메라가
+  0개이고 카메라는 스폰되는 아바타가 들고 온다. 그보다 오래 지속되면 위 ①~④ 중 하나다. **룸 씬이 아직 Hierarchy에 없으면 로딩 중이고, 룸은 올라왔는데
+  아바타·카메라가 없으면 고장이다** — 로그의 `Local client is starting` 횟수를 센다(2회면 ④).
 - Do **not** scene-save `QuickStart.unity` — QuickTest edits it in memory only (Setup/Teardown restore it).
 - Never re-parent `--PLAYER_SPAWNER`; add layer content additively. Never modify SYSTEMS/Core or PackageCache to
   make a component fit (that is a contract violation — see §4.5 core-promotion rules).

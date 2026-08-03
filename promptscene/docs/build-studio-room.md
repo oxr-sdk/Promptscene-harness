@@ -86,6 +86,164 @@ FishNet.Editing.PrefabCollectionGenerator.Generator.GenerateFull(null,false,true
 - **측정 주입(하네스):** 단일 에디터 MCP는 실제 마우스 이동 불가 → `Physics.Raycast`(바닥 Plane)로 실 RaycastHit 획득 → private `RulerContent.OnClick(hit)` 리플렉션 2회. **정직 캐비엇: "실제 마우스 클릭 이벤트→레이캐스트"는 미검증**(D2/M4 동일 경계) — 검증된 것은 OnClick 이후 측정·스폰·RPC 전파.
 - **실증(§9):** §3 베이스라인 / §4 RoomCore(4서비스·SYSTEMS 무손상) / §5 Ruler(자기등록·SetEnabled·측정 스폰 중점+LineRenderer 전파+라벨 √거리·IsSpawned) — 전부 MCP PASS, Error 0.
 
+
+### 4.1 부트 흐름 트러블슈팅 — `No cameras rendering` (2026-07-30/31 실측)
+
+**전제: `QuickStart`도 룸 씬도 카메라를 갖고 있지 않다.** 커밋 버전 grep 결과 `Camera:` 0개, `MainCamera` 태그 0개.
+카메라는 **스폰되는 아바타 프리팹**에서 온다. 따라서 아바타가 없으면 Game 뷰는 계속 `No cameras rendering`이고,
+이건 UI·렌더 문제가 아니라 **부트 흐름 문제**다. 정상 상태에서도 다음 두 구간에는 반드시 뜬다:
+
+- **에디트 모드 전체** (재생 전) — 정상. 고칠 것 없음.
+- **▶ 직후 수십 초** (서버 시작 → Addressables 룸 로드 → 스폰) — 정상. 기다리면 뜬다.
+  실측 범위: 방해 없는 부트는 **t≈27초**에 `룸 loaded + cams=1 + 아바타`였고, 부트 중에 MCP 프로브를 두 번 넣은
+  부트는 **t=14초에 아직 `룸 loaded=False`**, t≈56초에 완료였다. 즉 **"10~17초"는 상한이 아니다.**
+
+⚠️ **부트 시간을 늘리는 두 가지 (둘 다 Unity 메인 스레드를 잡는다):**
+- MCP 플러그인이 **매 부트마다** `[Unity-MCP DependencyResolver] Restoring NuGet packages… → Refreshing AssetDatabase`를
+  돌린다(부트 시작 ~1.3초 후). 진행 중인 Addressables 로드를 그만큼 멈춘다.
+- **에이전트의 `script-execute` 자체.** Roslyn 컴파일이 메인 스레드에서 돈다 → **부트 중에 상태를 찍는 행위가 그 부트를
+  느리게 만든다**(관측자 효과). → **부트가 끝날 때까지 프로브하지 말고, 한 번만 찍는다.**
+
+✅ **"안 되는 것"과 "아직 로딩 중"을 한눈에 가르는 기준:**
+
+| Hierarchy | 판정 |
+|---|---|
+| 룸 씬이 아직 없거나 `loaded=False` | **로딩 중.** 기다린다 (섣불리 ▶를 다시 누르면 처음부터) |
+| 룸은 올라왔는데 카메라·아바타가 없다 | **고장.** 아래 표의 ①~④ — 특히 ④(`client is starting`이 2회) |
+
+그보다 오래 지속되면 아래 넷 중 하나다. 전부 실측으로 확인했고, 1~3은 세 verify 드라이버가 Setup 진입 전에 단정한다.
+
+| # | 원인 | 증상 구분법 | 가드 |
+|---|---|---|---|
+| 1 | `roomSceneKey`가 **없는 룸**을 가리킴 | 인스펙터 `Room Scene` 칸이 `None` | `RoomResolvable()` → 정지 |
+| 2 | **룸 씬이 에디터에 additive 로 열린 채 ▶** | Hierarchy에 `QuickStart` 옆에 룸이 같이 보인다. 룸·RoomCore·HUD는 올라오는데 **스폰만 빠진다** | `OnlyBootSceneOpen()` → 정지 |
+| 3 | 키가 **카탈로그 주소도, 어떤 씬의 파일명도 아님** (오타·삭제된 룸) | 룸이 Hierarchy에 **아예 안 올라온다**. 로그에 `Failed to load scene key` 또는 로드 요청 후 무반응 | `RoomKeyLikeHuman()` + 왕복 검사 → 정지 |
+| 4 | **부트 중 Game 뷰 좌상단 클릭** = FishNet 데모 HUD의 `Start Client` 버튼을 누른 것 | 로그에 `Local client is starting`이 **`[QuickTest] Host: 클라이언트 접속...` 없이** 먼저 한 번 뜬다. 이어서 `Remote connection stopped for Id 0` → `started for Id 1` | 가드 없음(사람의 클릭) → **클릭 금지 구역**을 안내한다 |
+
+**4번 상세 (2026-08-03 스택트레이스로 확정).** `QuickStart`의 `NetworkManager/NetworkHudCanvas`는 FishNet 데모
+스크립트 `NetworkHudCanvases`이고, 이것이 **`OnGUI`로 Game 뷰 좌상단에 `Start Server` / `Start Client` 버튼을 그린다**
+(`GUILayout.BeginArea(new Rect(4, 110, 256, 9000))`, 버튼 165×42, `GUI.matrix`가 1920×1080 기준으로 스케일 →
+1280×720 뷰에서는 대략 **x 0~115, y 70~140 px**). 그 영역을 클릭하면 `OnClick_Client()`가 호출되고, 여기가 **토글**이라
+연결 상태에 따라 Start/Stop이 갈린다.
+
+부트 중에 눌리면 이렇게 무너진다:
+
+| 시각 | 성공 부트 (09:35) | 실패 부트 (09:55) |
+|---|---|---|
+| +2.6s | — | `Local client is starting` ← `NetworkHudCanvases:OnGUI → OnClick_Client` (사람 클릭) |
+| +2.9s | — | `[NetworkEnabler] enabling embedded rig under 'OnlyClient'` (Id 0 기준) |
+| +4.4s | `[QuickTest] Host: 클라이언트 접속...` (유일한 클라 시작) | `[QuickTest] Host: 클라이언트 접속...` → `QuickTestStarter.cs:122`가 **이미 붙은 연결을 끊고 재접속** |
+| +4.4s | `[NetworkEnabler] enabling embedded rig` ✅ | `Remote connection stopped Id 0` → `started Id 1`, `NetworkEnabler` **재발화 없음** → `cams=0` ❌ |
+
+`QuickTestStarter`는 호스트 모드에서 `WaitForSeconds(2f)` 뒤 `ClientManager.StartConnection()`을 한 번 부른다
+(`QuickTestStarter.cs:118~123`). 즉 **클라 시작은 그 한 번뿐이어야 한다.** 사람이 먼저 눌러 만든 연결은
+그 호출에 의해 재시작되고, 리그를 켜준 `NetworkEnabler`는 새 연결에 다시 붙지 않는다.
+
+→ **사람 안내 규칙: 부트가 끝날 때까지(~17초) Game 뷰를 클릭하지 않는다. 클릭이 필요하면 좌상단을 피해
+화면 중앙~우하단을 클릭한다.** (`Stop Client`도 같은 버튼이라, 부트 후에 눌러도 세션이 끊긴다.)
+
+**④를 확정한 대조 실험 (2026-08-03, `T_RoomA` / 키 `Scenes/T_RoomA` 고정).** 키·룸·씬 구성을 **하나도 바꾸지 않고**
+클릭만 뺐다:
+
+| 부트 | 클라 시작 호출자 | 결과 |
+|---|---|---|
+| 10:02 / 10:03 (사람이 부트 중 클릭) | `NetworkHudCanvases:OnGUI` **+** `QuickTestStarter.cs:122` = **2회** | `cams=0`, `avatar=MISSING` ❌ |
+| 10:08 (클릭 없이 `EnterPlaymode`) | `QuickTestStarter.cs:122` **1회뿐** | `cams=1`, `avatar=(0,0,0)` ✅ |
+
+→ 판별 한 줄: **로그에서 `Local client is starting`이 몇 번 뜨는지 센다. 2번이면 ④다.**
+"드래그앤드롭이 원래 됐는데 안 된다"의 정답이 대부분 여기다 — 키는 멀쩡하다.
+
+**2번 A/B 실측** (`roomSceneKey`는 양쪽 동일하게 정상값):
+
+| ▶ 직전 상태 | t+14~17s |
+|---|---|
+| 룸이 additive 로 함께 열림 | `cams=0, avatar=False` ❌ (룸 로드 ✅, RoomCore ✅, HUD 버튼 생성 ✅ — **스폰만** 실패) |
+| `QuickStart` **단독** | `cams=1, avatar=True` ✅ |
+
+⚠️ **에이전트 의무:** 룸 씬을 열어 편집했으면 넘기기 전에 **반드시 `scene-open QuickStart Single`로 되돌린다.**
+사람은 Project 창의 씬 에셋을 인스펙터 칸에 **끌어다 놓기만** 하므로 룸을 여는 일이 없다 — 즉 2번은
+**에이전트 워크플로가 만드는 상태**다. 룸을 열어놓고 넘기면 사람이 ▶를 눌러 밟는다(2026-07-31 실제 발생).
+
+### 4.2 `roomSceneKey`를 스크립트로 쓸 때의 함정 (실측)
+
+- **`Room Scene`은 별도 필드가 아니다.** 직렬 필드는 `roomSceneKey`(문자열) 하나뿐이고, 인스펙터 위쪽
+  `Scene (드래그&드롭)` 칸은 `QuickTestStarterEditor`가 그 문자열을 SceneAsset으로 **역해석해 보여주는 뷰**다.
+  키만 올바르면 두 줄이 같이 맞고, 해석 실패면 그 칸이 `None`이 된다.
+- **키의 정답 형태는 Addressables 주소가 아니라 Unity 씬 이름(leaf)이다 (2026-08-03 정정).**
+  두 형태 모두 룸을 **로드**하지만, FishNet의 글로벌 씬 등록은 **씬 이름으로만** 맞는다:
+
+  | 키 | Addressables 로드 | `UnitySceneManager.GetSceneByName(key)` | FishNet `Connection.Scenes` | 아바타 |
+  |---|---|---|---|---|
+  | `T_RoomA` (leaf = 씬 이름) | ✅ 파일명 폴백으로 `Scenes/T_RoomA` 매핑 (로그 남음) | **True** | 룸 등록 ✅ | 스폰 ✅ |
+  | `Scenes/T_RoomA` (등록 주소) | ✅ 주소가 그대로 맞아 즉시 로드(로그 없음) | **False** | **`[]` 빈 채로 남음** + `The following global scenes were specified but could not be found: Scenes/T_RoomA` 경고 | 스폰 ✅ (실측) |
+
+  근거: `AddressablesSceneProcessor.ResolveAddressableSceneKey()`는 키가 카탈로그에 있으면 그대로 쓰고, 없으면
+  **확장자 없는 파일명**이 같은 카탈로그 키를 찾아준다 → leaf가 항상 통한다. 반면 FishNet
+  `SceneManager.OnClientAuthenticated()`는 `GetSceneByName(globalSceneName)`으로 찾으므로 **주소 형태는 실패**하고,
+  `sceneLookupData.Count == 0` → `SendEmptyBroadcast()`로 빠진다.
+- ⚠️ **그래서 `ResolveAddress()`를 그대로 키에 쓰면 안 된다** — 이 메서드는 **등록 주소**를 돌려준다(실측:
+  `T_RoomA`→`Scenes/T_RoomA`, `T_RoomB`→`Scenes/T_RoomB`, `AssembleRoom`→`Assets/App/Scenes/AssembleRoom.unity`).
+  사람의 드래그앤드롭도 이 값을 쓰므로, **사람이 넣어도 주소 형태가 들어간다.** 아바타는 그래도 뜨기 때문에
+  겉으로는 정상처럼 보이지만 `Connection.Scenes`가 비어 있다(측정됨). 네트워크 콘텐츠가 있는 룸에서 이게
+  복제에 어떤 영향을 주는지는 **아직 측정하지 않았다** — 확인 전까지는 **씬 이름(leaf)을 쓴다.**
+  인스펙터 표시는 두 형태 모두 정상이다(`ResolveSceneAsset('T_RoomA')`와 `('Scenes/T_RoomA')` 둘 다 T_RoomA를 돌려준다).
+- ✅ **정답은 손으로 키를 고치는 게 아니라 등록을 규약대로 되돌리는 것이다** — 그러면 드래그앤드롭이 알아서 맞는 값을 넣는다.
+  규약의 출처는 업스트림이다: `Docs/phase2-scene-authoring.md` L37 "이 **파일 이름(leaf)이 그대로 Addressables 주소가 되고**",
+  L77 "**파일 이름 그대로가 권장값** … `RoomScene` 라벨은 자동으로 붙습니다" → `Apply`.
+  Content Manager의 `ScanScenes()`도 미등록 씬에 `addr = name`(leaf)을 제안한다.
+- **2026-08-03에 실제로 어긋나 있었고 고쳤다.** `AssembleRoom`이 주소=`Assets/App/Scenes/AssembleRoom.unity`(Addressables의
+  **기본값 = 에셋 경로**) + **라벨 없음**으로 등록돼 있었다 — `CreateOrMoveEntry`만 돌고 address/label 지정이 안 된 형태다.
+  `/assemble-room` Phase 1이 **쓰고 나서 다시 읽지 않았기 때문에** 몇 주간 드러나지 않았다.
+  조치: (a) 엔트리를 `AssembleRoom` + `[RoomScene]`으로 복구, (b) Phase 1에 `SetLabel(..., force:true)` +
+  **읽기-되돌려-단정(read-back) 게이트**를 추가해 어긋나면 STOP하게 했다.
+  복구 후 실측: `ResolveAddress(AssembleRoom)` = `'AssembleRoom'`(= 씬 이름), 부트 시
+  `_globalScenes=[AssembleRoom]` · `GetSceneByName('AssembleRoom').IsValid=True` · `cams=1` · 아바타 스폰 ✅.
+- ⚠️ **GUI `Apply`는 이미 등록된 엔트리를 고쳐주지 못한다.** `ContentManagerWindow`는 기존 엔트리에 대해 `address`만
+  갱신하고 `SetLabel`은 **신규 추가 분기에만** 있다. 복구는 체크 해제 → `Apply`(엔트리 제거) → 다시 체크 → `Apply`,
+  또는 Phase 1 스크립트로 한다.
+- ℹ️ `T_RoomA`/`T_RoomB`는 여전히 `Scenes/T_Room*`으로 등록돼 있다(라벨은 있음). 규약의 leaf 형태가 아니라 같은 증상을
+  낸다 — 업스트림 템플릿 소유라 여기서 고치지 않았다. **oxr-sdk에 보고할 항목.**
+- **스크립트 쓰기는 씬을 dirty로 만들지 않는다.** 실측: `SerializedObject.ApplyModifiedProperties()` → `isDirty=False`,
+  `EditorUtility.SetDirty()` / `EditorSceneManager.MarkSceneDirty()` → `isDirty=True`.
+  즉 스크립트로 넣은 값은 Unity의 저장 추적 **밖**에 있어서, 씬을 다시 열면 **아무 경고 없이** 디스크 값으로 덮인다
+  (사람이 인스펙터에서 만지면 `*`가 뜨고 저장 프롬프트가 나온다 — 그쪽은 정상 유지된다).
+  → 한 Setup→Play→Check→Teardown 사이클 안에서는 안전하지만, 도중에 씬을 열고 닫으면 값이 사라진다.
+- **스냅샷 복원의 수명:** Setup은 원본을 `Temp/ps_*_orig.txt`에 저장한다. Teardown 없이 Setup을 다시 돌리면
+  스냅샷이 **자기가 방금 쓴 값으로 덮여** 사람이 넣어둔 원본이 사라진다(2026-07-30 실제 사고).
+  → Setup은 스냅샷이 있으면 덮어쓰지 않고 WARN, Teardown은 복원 후 스냅샷을 삭제한다.
+
+### 4.3 아바타가 안 움직인다 = 대개 Game 뷰 포커스다 (2026-08-03 실측 해소)
+
+`Desktop(Clone)` **스폰**은 §4가 판정하지만 **이동**은 판정하지 않는다. 그런데 "아바타가 안 움직인다"로 두 세션을
+태웠으므로, 원인과 판별 절차를 여기 남긴다. **결론: 결함이 아니라 포커스였다.**
+
+- `DummyController`는 레거시 `Input.GetAxis("Horizontal"/"Vertical")`로 읽고 `localPosition`에 직접 가산한다.
+  `moveSpeed = 1f` → **1 m/s** (체감이 느리다). `activeInputHandler=2`(Both)라 레거시 입력은 유효하다.
+- 레거시 입력은 **Game 뷰가 키보드 포커스를 쥐어야** 들어온다. 창이 보이는 것만으로는 안 되고,
+  **Game 뷰 안을 한 번 클릭**해야 한다. MCP로 에디터를 구동하면 `Application.isFocused=False`가 되기 쉽고,
+  특히 `Selection.activeGameObject=…`를 실행하면 Inspector가 앞으로 나와 키를 가로챈다.
+  → **에이전트는 넘기기 전에 `Selection.activeObject=null`로 선택을 해제한다.**
+- 사람 절차: 부트가 끝난 뒤 **Game 뷰 중앙~우하단을 클릭** → WASD를 **길게**. ⛔ **좌상단은 금지** — FishNet 데모 HUD의
+  `Start/Stop Client` 버튼이 그려져 있어 세션이 끊긴다(§4.1 ④). HUD 패널을 클릭하면 콘텐츠가 토글되므로 그것도 피한다.
+  1 m/s이므로 3초 ≈ 1.4 m. 짧게 톡 누르면 `GetAxis` 램프까지 겹쳐 2~3 cm만 가고, 바닥이 텅 빈 평면이라 안 보인다.
+
+**판별 절차(실측 A/B).** 같은 씬·같은 빌드에서 Game 뷰 클릭 전/후만 다르다:
+
+| | 클릭 전 (W 3초) | 클릭 후 (W 3초) |
+|---|---|---|
+| `Input.GetAxis("Vertical")` 최대 | **0** (13,226 프레임 내내) | **1** |
+| `Input.GetKey(KeyCode.W)` 관측 | **False** | **True** (A/S/D도) |
+| `Dummy.localPosition` 이동 | 0 m | **1.4 m** (카메라 동반) |
+
+- **먼저 배제할 것 — 코드 경로는 무죄임을 1회로 증명한다.** `Dummy.transform.localPosition += (0,0,-1)`을 직접 써보고
+  1초 뒤 다시 읽는다. 값이 유지되고 카메라가 따라오면 이동 경로·소유권·`NetworkTransform`(아바타에 68개 붙어 있다)
+  전부 무죄다. 실측: 유지됨 + 카메라 `z=-1.025`.
+- **⚠ `Input.anyKey`는 마우스 버튼도 True로 만든다.** "anyKey=True인데 W=False"를 "키보드는 오는데 W만 막힌다"로
+  읽으면 틀린다 — 그 True는 Game 뷰 클릭이었다(2026-08-03 실제 오독). 키보드 도달 여부는 **키코드별로** 찍어야 갈린다.
+- 축 설정과 레거시 활성은 정적으로 먼저 확인한다: `ProjectSettings/InputManager.asset`의 `Vertical`은
+  `altPositiveButton: w`, `type: 0`. 그리고 Active Input Handling이 New 전용이면 `Input.GetAxis`가
+  **`InvalidOperationException`을 던진다** — 예외 없이 0을 반환하면 레거시는 살아 있다는 뜻이므로 그 방향은 접는다.
+- 한글 IME는 무죄였다(W/A/S/D 모두 도달). 의심되면 `Vertical`에 `up` 방향키도 걸려 있으니 방향키로 갈라본다.
 ---
 
 ## 5. 크로스플랫폼 룸 UI (World Space uGUI + XRI) — 입력소스 독립

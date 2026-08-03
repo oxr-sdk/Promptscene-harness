@@ -47,6 +47,8 @@
 | **아바타 "앉은 몸 자세(seated body pose)"** — 의자에 실제로 앉은 몸이 보이기 | seated humanoid 클립 / RuntimeAnimatorController 에셋이 프로젝트에 **0개**(grep 확인) | 에디터 스크립트로 **절차 생성**: hips/상체/무릎·발목 본 로컬 회전을 `AnimationCurve`로 키잉한 humanoid `AnimationClip` 생성 → `AnimatorController` 자산 생성 + **레이어 IK Pass on**(코드로 설정) → `MotionAvatar.SetAnimationBlendWeight(1)` | 아티스트/모캡 seated 클립으로 교체하면 자세 품질이 올라간다(절차 포즈는 "앉아 있음"은 읽히지만 자연스러운 무게 이동은 없음) |
 | **per-bone 블렌드 가중치 주입** | `MotionAvatar.BodyAnimationWeights`에 **public setter 없음**(getter가 `FullBodyBuffer<float>` 참조 반환) | 반환된 **버퍼 참조를 직접 mutate**하거나 리플렉션으로 백킹 필드 쓰기 (패키지 소스 무수정) | UnifiedXRMotion에 공식 setter 추가를 요청하면 리플렉션 seam이 사라진다 — **패키지 업그레이드 때 깨질 수 있는 지점** |
 | **착석 상태 크로스클라 동기** | DeepChair 방식은 아바타 프리팹에 네트워크 컴포넌트를 다는 **SYSTEMS 리치인**(§4.5) | **콘텐츠측 대체**: FEATURE가 자기 `NetworkObject` 프리팹에 `SyncVar<bool>`/`[XumRPC]` sit-state를 들고, 원격 아바타는 **런타임 룩업**으로 찾아 포즈를 적용 → 아바타 프리팹 무수정 | 두 번째 소비자가 생기면 §4.5 rule-of-two를 만족하니, 그때 오너 결정으로 SYSTEMS 승격을 검토 |
+| **헤드셋에서 보이는 채팅창** | 기존 채팅 패널이 IMGUI(`OnGUI`) — HMD 아이 버퍼에 안 그려짐(데스크톱 미러 전용) | 런타임 생성 **World Space uGUI 면**(`ChatWorldPanel`): 등록된 `chat` 콘텐츠의 IsEnabled를 계약으로만 미러링, GraphicRaycaster + TrackedDeviceGraphicRaycaster 동시 부착, 동적 OS 폰트 | authoring된 캔버스 프리팹 + **한글 TMP/폰트 에셋 1개**를 넣으면 레이아웃을 사람이 잡고 Quest 한글이 OS 폰트 운에 안 걸린다 |
+| **메타 시스템 키보드(오버레이)** | Meta 문서상 **Meta XR Core SDK 필요**(`OVRManager → Requires System Keyboard`) — 프로젝트는 순수 OpenXR+XRI, SDK 추가는 ⛔(b) | 그 토글의 산출물이 매니페스트 한 줄임을 확인 → `oculus.software.overlay_keyboard`를 **콘텐츠측 매니페스트에 직접 선언** + Unity 표준 `TouchScreenKeyboard`를 `SystemKeyboardBinder`로 구동 | SDK 도입 시 바인더 불필요 + `OVRVirtualKeyboard`(손 추적 타이핑) 선택지 개방 — §4.5 오너 결정. **실기기 확인 전까지 오버레이 실출현은 미검증** → [chat-meta-keyboard-invoice.md](chat-meta-keyboard-invoice.md) |
 
 **앉은 자세의 미감(무게 이동·손 위치의 자연스러움)** 만은 여전히 ⛔(a) 사람 판정이다 — 코드가 "앉은 형태"는 만들지만
 "잘 앉은 느낌"은 사람이 본다. 관련 청구서: [chair-sit-seated-pose-invoice.md](chair-sit-seated-pose-invoice.md)
@@ -65,6 +67,8 @@
 | 생성 에셋(임의 소품 모양·색·분위기) | text2img→3D 파이프라인 + 후처리(데시메이션·피벗·스케일·콜라이더) 라이브러리 공장 | 미착수(D3). **외형 질문 3종이 등장하면 착수 신호**(D6) | [design-directions](design-directions-2026-07.md#d3-생성-에셋-파이프라인--라이브러리-공장-모델) |
 | 3인+ 동시(대칭 득점 포함), 실기기(Quest) 2클라 | 조인 인프라 안정화(트랩 J 멀티 게스트 flakiness / 트랩 K 콜드스타트 토큰), N명 플레이테스트 하네스 | 조인 재시도/워밍업 하네스 내장이 선행 과제 | HANDOFF §8, build-desktop-client §8 J/K |
 | 실기기 던지기 손맛(실제 컨트롤러 스윙→릴리즈 velocity) | 실기기 + 사람 판정. 코드경로는 시뮬/실기기 동일(V1b 소스검증), 미감은 비검증 | V2 (사람이 판정자) | build-desktop-client §13 V2 준비 |
+| **HUD 배경 블러(유리의 "진짜" 질감)** | 게이트 **(c) 없는 인프라(실기기 프레임 예산)**. URP Kawase blur Renderer Feature가 Quest에서 동작하지 않은 전례 — 에디터 성공은 증거가 아니다 | 경로 3개(URP Renderer Feature / 전용 카메라+저해상도 RT / 정적 굽기)와 Quest 실측 게이트. **저점은 블러 없이 이미 통과**(글리프 7.17:1, 라벨 6.09:1)라 미감 항목이다 | [hud-blur-invoice.md](hud-blur-invoice.md) |
+| **Quest 실기기에서 시스템 키보드가 실제로 뜨는 것** | 게이트 **(c) 없는 인프라(실기기)**. 에디터는 `TouchScreenKeyboard.isSupported=false` — 코드 경로 실행까지만 증명됨. OVRPlugin 없이 OS가 오버레이를 띄우는지는 실기기 판정 | Quest 1대 + 15분(기존 build-meta-client 절차, 신규 인프라 0). 실패 시 게이트가 (b) 오너 결정(SDK 추가)으로 이동 | [chat-meta-keyboard-invoice.md](chat-meta-keyboard-invoice.md) |
 | **앉은 자세의 "잘 앉은 느낌"**(무게 이동·손 위치·시선의 자연스러움) | 게이트 **(a) 사람의 미감 판정**. 앉은 *형태*는 코드로 만든다(위 ⚠ 표) — 그게 예뻐 보이는지는 사람이 본다 | 아티스트/모캡 seated 클립 1개(선택) + 사람의 눈 판정(Phase 6 핸드오프) | [chair-sit-seated-pose-invoice.md](chair-sit-seated-pose-invoice.md), scout PART A/B1, oxr-docs-routing Q3 |
 
 ---
