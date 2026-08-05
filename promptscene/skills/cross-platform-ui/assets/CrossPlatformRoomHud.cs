@@ -6,87 +6,91 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using PromptScene.Core;
-using PromptScene.Core.UI;      // HudTheme / HudSprites — the token SSOT (glass v0)
+using PromptScene.Core.UI;      // HudTheme / HudSprites / HudIcons — the token SSOT (glass v6)
 
 /// <summary>
-/// REUSABLE cross-platform World Space HUD binder (input-source independent). Generalizes the Ruler-specific
-/// RoomHudBinder into a room-agnostic part: it hardcodes NO feature — it walks <see cref="RoomContentRegistry.Toggleable"/>
-/// and renders ONE ON/OFF button per toggleable content. Drop it (with an authored canvas — see below) into ANY room
-/// that has a RoomCore and it wires itself from the registry. Placement is /cross-platform-ui's job (or add-component's).
+/// REUSABLE cross-platform World Space HUD binder (input-source independent). Hardcodes NO feature — it walks
+/// <see cref="RoomContentRegistry.Toggleable"/> and renders ONE circular icon button per toggleable content, four per
+/// page, with drag/wheel paging. Drop it (with an authored canvas) into ANY room that has a RoomCore and it wires
+/// itself from the registry. Placement is /cross-platform-ui's job.
 ///
 /// Procedure/traps SSOT: build-studio-room.md §5 (World Space uGUI + billboard + dynamic OS font + SuppressWorldClick)
-/// and §6 (XRI world-click via XRWorldClicker + SubmitExternalRay — the shared Near-Far interactor path). This binder
-/// only WIRES pre-authored scene objects at runtime — the studio pattern proven by LeaveButton (a serialized onClick to
-/// a hot method resolves to target=null, so a hot script must AddListener at runtime; contract §3b).
+/// and §6 (XRI world-click via XRWorldClicker + SubmitExternalRay). This binder only WIRES pre-authored scene objects
+/// at runtime — a serialized onClick to a hot method resolves to target=null, so a hot script must AddListener at
+/// runtime (contract §3b).
+///
+/// ── glass v6: 제목도 문구도 없다. 원 4개/페이지 + 넘길 때만 보이는 점. ───────────────────────────────────────
+/// 상태를 **글자로 말하지 않는다**: ON은 원의 Accent 채움 + 라벨 강조로만 말한다(`": ON"` 0건).
+/// 글리프는 OFF/ON **양쪽 모두 어둡다**(<see cref="HudTheme.GlyphDark"/>) — 그게 성립하려면 Film이 충분히
+/// 불투명해야 하고, 그 알파는 대비 산술이 정했다(HudTheme 헤더 참고). 라벨은 불투명 아웃라인으로 대비를 얻는다.
+/// 파괴적 액션("측정 지우기")도 같은 원형 버튼이지만 **액센트를 절대 입지 않는다**.
 ///
 /// ── DESIGN TOKENS ────────────────────────────────────────────────────────────────────────────────────────────
 /// Every colour / size / spacing / weight comes from <see cref="HudTheme"/>. This file authors NO literal colour and
-/// NO literal design px, and it adds NO serialized field (contract §3b: a hot view has zero serialized fields — the
-/// tokens live in code, so a hot recompile is all it takes to restyle).
-/// The ACTIVE-state indicator is the accent bar and ONLY the accent bar: <see cref="HudTheme.Accent"/> appears on the
-/// per-row `…__bar` Image when the feature is enabled and is alpha-0 otherwise. Nothing else in the HUD may be accent
-/// coloured (verify U7 "accent = one meaning"). Emphasis on the label is COLOUR (TextHi vs TextLo), never faux-bold.
+/// NO literal design px, and it adds NO serialized field (contract §3b).
 ///
-/// Authored structure this binder expects (created &amp; SAVED in the scene by /cross-platform-ui, editable in-editor):
-///   RoomHud (Canvas WorldSpace + CanvasScaler + GraphicRaycaster [+ TrackedDeviceGraphicRaycaster for XR] + this)
-///     └── Panel (Hairline) ── PanelFill (PanelTint) / PanelEdge (HairlineLit) / Content (VerticalLayoutGroup)
-///           ├── TitleCard (Card) → Title (Text)
-///           ├── Buttons   (VerticalLayoutGroup) → ButtonTemplate (INACTIVE) → RowFill (Card) → Bar + Label
-///           ├── CountCard (Card) → Count (Text)   — hidden unless a Ruler is present
-///           └── HintCard  (Card) → Hint  (Text)
+/// Authored structure this binder expects (created &amp; SAVED in the scene by /cross-platform-ui):
+///   RoomHud (Canvas WorldSpace + CanvasScaler + GraphicRaycaster [+ TrackedDeviceGraphicRaycaster] + this)
+///     └── Panel (Image = Scrim) ── PanelFrame / PanelEdge / TopSpacer / Viewport(RectMask2D + HudPager) / Dots
+///           Viewport └ Track └ PageTemplate (INACTIVE) ; IconButtonTemplate (INACTIVE) ; DotTemplate (INACTIVE)
+///           IconButtonTemplate └ …__disc (Film) └ …__glyph / …__icon ; …__ring ; …__label
 ///
-/// Cross-platform: the authored canvas carries BOTH GraphicRaycaster (desktop mouse via InputSystemUIInputModule) AND
-/// (in XR / cross-platform mode) TrackedDeviceGraphicRaycaster (XR ray/poke via XRUIInputModule). The XR SELECT that
-/// clicks a button, and the XR SELECT that measures the floor, both flow through the SAME Near-Far interactor shared by
-/// controller and hand — so hand tracking is covered by the same code (verified structurally; live proof = mouse + XR
-/// Interaction Simulator CONTROLLER; real-device hand/XREAL/tablet/Vision = V2, see the skill's honesty contract).
-///
-/// Runtime-only bits (cannot be authored/serialized): the World Space eventCamera (assigned to the active camera each
-/// frame), the Korean font, the procedural rounded-corner sprites (HideAndDontSave → they do not survive a scene save,
-/// so they are re-applied here every Start), the per-content onClick bindings, and the SuppressWorldClick pointer
-/// enter/exit claim. Client-only — a headless/batch server skips the whole HUD.
+/// Runtime-only bits (cannot be authored/serialized): the World Space eventCamera, the Korean + icon fonts, the
+/// procedural circle/ring/frame sprites (HideAndDontSave → they do not survive a scene save, so they are re-applied
+/// every Start), the per-content onClick + hover bindings, the pager wiring, and the SuppressWorldClick claim.
+/// Client-only — a headless/batch server skips the whole HUD.
 /// </summary>
 public class CrossPlatformRoomHud : MonoBehaviour
 {
-    // Runtime lookup key of the pilot measuring feature. Keyed by id, NOT by compile-time type, so this part carries no
-    // dependency on any feature and stays portable to a room/project that has no Ruler (contract §5 / build-studio-room §5:
-    // "Ruler 전용 측정 지우기는 GetById(\"ruler\") 런타임 조회로만 — 없는 룸엔 미표시").
     private const string ClearableId = "ruler";
+    private const string ClearActionId = "clear";
     private const string ClearMethod = "ClearAll";
     private const string MeasurementTypeName = "RulerMeasurementView";
 
-    /// <summary>Suffix that marks the ONE object allowed to carry <see cref="HudTheme.Accent"/> (verify U7).</summary>
-    public const string AccentBarSuffix = "__bar";
+    /// <summary>An entry in the grid: a toggleable feature, or a non-toggle action button.</summary>
+    private struct Entry
+    {
+        public string Id, Display;
+        public Sprite Icon;
+        public IToggleableContent Content;   // null for an action
+        public bool IsAction;
+    }
 
     private Canvas _canvas;
-    private bool _worldSpace;       // billboard + eventCamera only apply to a World Space canvas (Screen Space Overlay skips them)
+    private bool _worldSpace;
     private Font _font;
     private RoomContentRegistry _reg;
-    private Transform _buttons;
-    private GameObject _template;
-    private Text _title, _count, _hint;
-    private GameObject _countCard;
+    private RectTransform _viewport, _track, _dots;
+    private CanvasGroup _dotsGroup;
+    private GameObject _pageTemplate, _cellTemplate, _dotTemplate;
+    private HudPager _pager;
     private bool _wired;
 
-    /// <summary>
-    /// True when no PyeojinGothic Font asset was found and the HUD fell back to a dynamic OS font.
-    /// Verify records this as a WARN, never a FAIL: bundling the font (and building the real 400/600 weight pair) is a
-    /// baked-base job outside this skill. Under fallback there is exactly ONE weight available, so the theme's
-    /// WeightBody/WeightEmph pair collapses to regular and emphasis is carried by colour alone.
-    /// </summary>
-    public bool FontFallback { get; private set; }
+    private readonly List<Entry> _entries = new List<Entry>();
+    private readonly Dictionary<string, Text>  _labels = new Dictionary<string, Text>();
+    private readonly Dictionary<string, Image> _discs  = new Dictionary<string, Image>();
+    private readonly Dictionary<string, Text>  _glyphs = new Dictionary<string, Text>();
+    private readonly Dictionary<string, Image> _rings  = new Dictionary<string, Image>();
+    private readonly List<Image> _dotImages = new List<Image>();
+    private readonly HashSet<string> _hovered = new HashSet<string>();
 
-    /// <summary>Weight actually realised for body/emphasis text. Under font fallback both are <see cref="HudTheme.WeightBody"/>.</summary>
-    public int RealisedEmphWeight => FontFallback ? HudTheme.WeightBody : HudTheme.WeightEmph;
-
-    // one row per toggleable content id
-    private readonly Dictionary<string, Text> _labels = new Dictionary<string, Text>();
-    private readonly Dictionary<string, Image> _bars = new Dictionary<string, Image>();
-    private readonly Dictionary<string, IToggleableContent> _content = new Dictionary<string, IToggleableContent>();
-
-    // reflection cache for the optional Ruler "clear" affordance (no compile-time dependency on RulerContent)
     private Type _measurementType;
     private MethodInfo _clearMethod;
+
+    /// <summary>True when no PyeojinGothic Font asset was found and the HUD fell back to a dynamic OS font (WARN, not FAIL).</summary>
+    public bool FontFallback { get; private set; }
+    public int RealisedEmphWeight => FontFallback ? HudTheme.WeightBody : HudTheme.WeightEmph;
+    public bool IconFontLoaded { get; private set; }
+    public int PageCount => _pager != null ? _pager.Pages : 0;
+
+    /// <summary>Which fallback tier each entry resolved to — U11 reads this to prove the chain is deterministic.</summary>
+    public readonly Dictionary<string, HudIconTier> IconTiers = new Dictionary<string, HudIconTier>();
+
+    /// <summary>
+    /// ⛔ STOP-AND-REPORT list: an id whose codepoint mapping exists but is NOT in the font atlas.
+    /// Never silently swallowed into the letter fallback — U11 FAILs on a non-empty list.
+    /// </summary>
+    public readonly List<string> IconErrors = new List<string>();
 
     private void Start()
     {
@@ -94,28 +98,28 @@ public class CrossPlatformRoomHud : MonoBehaviour
         _canvas     = GetComponent<Canvas>();
         _worldSpace = _canvas != null && _canvas.renderMode == RenderMode.WorldSpace;
         _font       = FindFont();
-        _title    = FindDeep("Title")?.GetComponent<Text>();
-        _count    = FindDeep("Count")?.GetComponent<Text>();
-        _hint     = FindDeep("Hint")?.GetComponent<Text>();
-        _buttons  = FindDeep("Buttons");
-        _template = FindDeep("ButtonTemplate")?.gameObject;
-        _countCard = FindDeep("CountCard")?.gameObject;
-        if (_template != null) _template.SetActive(false);         // template stays hidden; instances are cloned from it
+        IconFontLoaded = HudIcons.Font != null;
+
+        _viewport     = FindDeep("Viewport") as RectTransform;
+        _track        = FindDeep("Track") as RectTransform;
+        _dots         = FindDeep("Dots") as RectTransform;
+        _pageTemplate = FindDeep("PageTemplate")?.gameObject;
+        _cellTemplate = FindDeep("IconButtonTemplate")?.gameObject;
+        _dotTemplate  = FindDeep("DotTemplate")?.gameObject;
+        if (_pageTemplate != null) _pageTemplate.SetActive(false);
+        if (_cellTemplate != null) _cellTemplate.SetActive(false);
+        if (_dotTemplate  != null) _dotTemplate.SetActive(false);
+        if (_dots != null) _dotsGroup = _dots.GetComponent<CanvasGroup>() ?? _dots.gameObject.AddComponent<CanvasGroup>();
+        if (_viewport != null) _pager = _viewport.GetComponent<HudPager>() ?? _viewport.gameObject.AddComponent<HudPager>();
 
         _measurementType = FindType(MeasurementTypeName);
 
         ApplyFont();
-        ApplyRoundedSprites();          // procedural sprites do not serialize — re-apply so the runtime has the radius
-        if (_title != null) _title.text = "PromptScene — 도구";
-        if (_hint  != null) _hint.text  = "도구 ON → 포인팅/클릭으로 사용하고 다른 참가자와 공유됩니다.";
-        // no Ruler → hide the whole Card, not just the Text (an empty card would still eat a layout row)
-        if (_countCard != null) _countCard.SetActive(false);
-        else if (_count != null) _count.gameObject.SetActive(false);
+        ApplySprites();                 // procedural sprites do not serialize — re-apply so the runtime has the shapes
 
-        // SuppressWorldClick while a pointer/interactor is over the panel (mouse AND XR fire PointerEnter/Exit),
-        // so a button press does not also leak through as a floor world-click. Attach the trigger to the PANEL (the
-        // object that actually carries the background Image / raycast target) — the root Canvas has no graphic when the
-        // panel is a child (required so a Screen Space Overlay canvas isn't itself a full-screen background).
+        // SuppressWorldClick while a pointer/interactor is over the panel (mouse AND XR fire PointerEnter/Exit), so a
+        // button press does not also leak through as a floor world-click. The trigger goes on the PANEL (the object
+        // carrying the background Image / raycast target) — the root Canvas has no graphic.
         var panel = FindDeep("Panel")?.gameObject ?? gameObject;
         var trigger = panel.GetComponent<EventTrigger>() ?? panel.AddComponent<EventTrigger>();
         AddTrigger(trigger, EventTriggerType.PointerEnter, () => SimpleClickProvider.SetWorldClickSuppressed(this, true));
@@ -125,6 +129,9 @@ public class CrossPlatformRoomHud : MonoBehaviour
             Debug.LogWarning("[CrossPlatformRoomHud] WARN font fallback: no PyeojinGothic Font asset — using a dynamic OS font. " +
                              "Only one weight is available, so HudTheme.WeightEmph(" + HudTheme.WeightEmph + ") renders as " +
                              HudTheme.WeightBody + " and emphasis is colour-only. Bundling the 400/600 pair is a baked-base item.");
+        if (!IconFontLoaded)
+            Debug.LogWarning("[CrossPlatformRoomHud] WARN icon font missing (Resources/" + HudIcons.FontResourcePath +
+                             ") — every icon falls back to the first letter of DisplayName (tier ③).");
     }
 
     private void OnDisable()
@@ -132,8 +139,8 @@ public class CrossPlatformRoomHud : MonoBehaviour
         SimpleClickProvider.SetWorldClickSuppressed(this, false);
         if (_reg != null)
         {
-            _reg.OnContentToggled     -= OnToggled;
-            _reg.OnContentRegistered  -= OnRegistered;
+            _reg.OnContentToggled    -= OnToggled;
+            _reg.OnContentRegistered -= OnRegistered;
         }
     }
 
@@ -148,150 +155,239 @@ public class CrossPlatformRoomHud : MonoBehaviour
         if (!_wired && RoomCore.Instance != null)
         {
             _reg = RoomCore.Instance.Contents;
-
-            foreach (var c in _reg.Toggleable.ToList()) AddRow(c);   // one ON/OFF button per registered toggleable
-            AddClearRowIfPresent();                                  // optional Ruler-only "측정 지우기"
-
+            Rebuild();
             _reg.OnContentToggled    += OnToggled;
-            _reg.OnContentRegistered += OnRegistered;                // features that self-register a frame late get a row too
-            RefreshCount();
+            _reg.OnContentRegistered += OnRegistered;   // features that self-register a frame late get a button too
             _wired = true;
+        }
+
+        // 점은 레이아웃을 차지한 채 alpha만 바뀐다 — 나타날 때 패널이 흔들리지 않게(v6 규칙).
+        if (_dotsGroup != null && _pager != null)
+        {
+            float want = (_pager.Pages > 1 && _pager.DotsVisible) ? 1f : 0f;
+            _dotsGroup.alpha = Mathf.MoveTowards(_dotsGroup.alpha, want, Time.unscaledDeltaTime / 0.18f);
         }
     }
 
     // Billboard: face the canvas FRONT at the active camera every frame — a World Space GraphicRaycaster ignores
-    // reversed (back-facing) graphics by default, so a fixed rotation that turned the back to the camera made the panel
-    // both mirrored AND unclickable. Facing the camera fixes readability and clickability at once (build-studio-room §5).
+    // reversed (back-facing) graphics, so a fixed rotation that turned the back to the camera made the panel both
+    // mirrored AND unclickable (build-studio-room §5).
     private void LateUpdate()
     {
-        if (!_worldSpace) return;   // a Screen Space Overlay canvas is screen-locked; do not billboard it
+        if (!_worldSpace) return;
         var cam = Cam();
         if (cam != null)
             transform.rotation = Quaternion.LookRotation(transform.position - cam.transform.position);
     }
 
-    // ─── registry-driven rows ────────────────────────────────────────────
-    private void AddRow(IToggleableContent c)
+    // ─── registry-driven build ───────────────────────────────────────────
+    private void CollectEntries()
     {
-        if (c == null || _template == null || _buttons == null) return;
-        if (_labels.ContainsKey(c.Id)) return;
+        _entries.Clear();
+        foreach (var c in _reg.Toggleable.ToList())
+            _entries.Add(new Entry { Id = c.Id, Display = c.Meta.DisplayName, Icon = c.Meta.Icon, Content = c });
 
-        var go = CloneRow("Btn_" + c.Id);
+        // Ruler-only destructive action, resolved by runtime lookup so a Ruler-less room simply doesn't show it.
+        var ruler = _reg.GetById(ClearableId);
+        if (ruler != null)
+        {
+            _clearMethod = ruler.GetType().GetMethod(ClearMethod, BindingFlags.Instance | BindingFlags.Public);
+            if (_clearMethod != null)
+                _entries.Add(new Entry { Id = ClearActionId, Display = "측정 지우기", IsAction = true });
+        }
+    }
+
+    private void Rebuild()
+    {
+        if (_track == null || _cellTemplate == null || _pageTemplate == null) return;
+        CollectEntries();
+
+        foreach (Transform child in _track) if (child.gameObject.activeSelf) Destroy(child.gameObject);
+        if (_dots != null) foreach (Transform child in _dots) if (child.gameObject.activeSelf) Destroy(child.gameObject);
+        _labels.Clear(); _discs.Clear(); _glyphs.Clear(); _rings.Clear(); _dotImages.Clear(); IconTiers.Clear(); IconErrors.Clear();
+
+        int pages = Mathf.Max(1, Mathf.CeilToInt(_entries.Count / (float)HudTheme.PageSize));
+        for (int p = 0; p < pages; p++)
+        {
+            var page = Instantiate(_pageTemplate, _track);
+            page.name = "Page_" + p;
+            page.SetActive(true);
+            for (int i = p * HudTheme.PageSize; i < Mathf.Min(_entries.Count, (p + 1) * HudTheme.PageSize); i++)
+                BuildCell(_entries[i], page.transform);
+        }
+
+        if (_dots != null && _dotTemplate != null)
+            for (int p = 0; p < pages; p++)
+            {
+                var dot = Instantiate(_dotTemplate, _dots);
+                dot.name = "Page" + p + HudTheme.Roles.Dot;
+                dot.SetActive(true);
+                var img = dot.GetComponent<Image>();
+                if (img != null) { img.color = p == 0 ? HudTheme.DotOn : HudTheme.Dot; _dotImages.Add(img); }
+            }
+
+        if (_pager != null && _viewport != null)
+            _pager.Configure(_viewport, _track, pages, _viewport.rect.width, OnPageChanged);
+
+        RefreshAll();
+    }
+
+    private void OnPageChanged(int page)
+    {
+        for (int i = 0; i < _dotImages.Count; i++)
+            if (_dotImages[i] != null) _dotImages[i].color = i == page ? HudTheme.DotOn : HudTheme.Dot;
+    }
+
+    private void BuildCell(Entry e, Transform page)
+    {
+        string row = (e.IsAction ? "Act_" : "Btn_") + e.Id;
+        var go = Instantiate(_cellTemplate, page);
+        go.name = row;
+        // 템플릿 부품은 이미 역할 접미사로 authoring 돼 있다(`Tmpl__disc` …) → 접미사로 찾아 행 이름만 갈아끼운다.
+        foreach (var suffix in new[] { HudTheme.Roles.Disc, HudTheme.Roles.Ring, HudTheme.Roles.Glyph,
+                                       HudTheme.Roles.Icon, HudTheme.Roles.Label })
+        {
+            var t = FindDeepBySuffix(go.transform, suffix);
+            if (t != null) t.name = row + suffix;
+        }
+        go.SetActive(true);
+        if (_font != null) foreach (var t in go.GetComponentsInChildren<Text>(true)) t.font = _font;
+        ApplySprites(go.transform);
+
         var btn   = go.GetComponent<Button>();
-        var label = go.GetComponentInChildren<Text>(true);
+        var disc  = Part<Image>(go, row + HudTheme.Roles.Disc);
+        var ring  = Part<Image>(go, row + HudTheme.Roles.Ring);
+        var glyph = Part<Text>(go,  row + HudTheme.Roles.Glyph);
+        var icon  = Part<Image>(go, row + HudTheme.Roles.Icon);
+        var label = Part<Text>(go,  row + HudTheme.Roles.Label);
 
-        _content[c.Id] = c;
-        _labels[c.Id]  = label;
-        _bars[c.Id]    = FindBar(go);
+        _discs[e.Id] = disc; _rings[e.Id] = ring; _glyphs[e.Id] = glyph; _labels[e.Id] = label;
+        if (btn != null && disc != null) btn.targetGraphic = disc;
+        if (label != null) label.text = string.IsNullOrEmpty(e.Display) ? e.Id : e.Display;
 
-        string id = c.Id;
+        // ⭐ ContentMeta.Icon finally gets a consumer (contract change: zero — the field was always there).
+        ApplyIcon(e, glyph, icon);
+
+        string id = e.Id;
+        bool isAction = e.IsAction;
         if (btn != null) btn.onClick.AddListener(() =>
         {
-            if (_content.TryGetValue(id, out var content) && content != null)
+            if (_pager != null && _pager.ConsumedDrag) return;     // 드래그의 꼬리로 들어온 클릭은 버린다
+            if (isAction) InvokeClear();
+            else
             {
-                content.SetEnabled(!content.IsEnabled);
-                RefreshRow(id);
-                RefreshCount();
+                var entry = _entries.FirstOrDefault(x => x.Id == id);
+                if (entry.Content != null) { entry.Content.SetEnabled(!entry.Content.IsEnabled); RefreshCell(id); }
             }
         });
-        RefreshRow(id);
+
+        // hover = 레이 조준 피드백. 장식이 아니라 "지금 이걸 겨누고 있다"는 유일한 신호다(마우스·XR 공통).
+        var trig = go.GetComponent<EventTrigger>() ?? go.AddComponent<EventTrigger>();
+        AddTrigger(trig, EventTriggerType.PointerEnter, () => { _hovered.Add(id); RefreshCell(id); });
+        AddTrigger(trig, EventTriggerType.PointerExit,  () => { _hovered.Remove(id); RefreshCell(id); });
+
+        RefreshCell(id);
     }
 
-    private void AddClearRowIfPresent()
+    private void ApplyIcon(Entry e, Text glyph, Image icon)
     {
-        var ruler = _reg.GetById(ClearableId);
-        if (ruler == null || _template == null || _buttons == null) return;
-        _clearMethod = ruler.GetType().GetMethod(ClearMethod, BindingFlags.Instance | BindingFlags.Public);
-        if (_clearMethod == null) return;   // present but no ClearAll() — skip rather than guess
+        var table = e.IsAction ? HudIcons.ByActionId : HudIcons.ByContentId;
+        var pick = HudIcons.Resolve(e.Icon, e.Display, e.Id, table);
+        IconTiers[e.Id] = pick.Tier;
 
-        var go = CloneRow("Btn_clear");
-        var btn   = go.GetComponent<Button>();
-        var label = go.GetComponentInChildren<Text>(true);
-        if (label != null) { label.text = "측정 지우기"; label.color = HudTheme.TextLo; }
-
-        // "측정 지우기" is DESTRUCTIVE, so it never wears the accent — it stays a ghost button: the Hairline rim it
-        // inherits from the template, a TextLo label, and an alpha-0 bar. (Accent means exactly one thing: "active".)
-        var bar = FindBar(go);
-        if (bar != null) { var t = HudTheme.Accent; t.a = 0f; bar.color = t; }
-
-        if (_countCard != null) _countCard.SetActive(true);          // a Ruler exists → surface the count line
-        else if (_count != null) _count.gameObject.SetActive(true);
-
-        if (btn != null) btn.onClick.AddListener(() =>
+        if (pick.Error != null)
         {
-            var r = _reg.GetById(ClearableId);
-            if (r != null) { try { _clearMethod.Invoke(r, null); } catch (Exception e) { Debug.LogWarning("[CrossPlatformRoomHud] clear failed: " + e.Message); } }
-            RefreshCount();
-        });
+            IconErrors.Add(e.Id + ": " + pick.Error);
+            Debug.LogError("[CrossPlatformRoomHud] ICON " + pick.Error);   // 조용히 넘기지 않는다
+        }
+
+        bool useSprite = pick.Tier == HudIconTier.Sprite && pick.Sprite != null;
+        if (icon != null)
+        {
+            icon.gameObject.SetActive(useSprite);
+            if (useSprite)
+            {
+                icon.sprite = pick.Sprite;
+                icon.color  = HudTheme.GlyphDark;              // 스프라이트도 같은 잉크로 틴트한다
+                icon.preserveAspect = true;
+            }
+        }
+        if (glyph != null)
+        {
+            glyph.gameObject.SetActive(!useSprite);
+            if (!useSprite)
+            {
+                glyph.text = pick.Text;
+                // ② 글리프는 아이콘 폰트로, ③ 첫글자는 본문 폰트로. 폰트를 바꾸는 건 이 한 곳뿐이다.
+                if (pick.Tier == HudIconTier.Glyph && HudIcons.Font != null) glyph.font = HudIcons.Font;
+                else if (_font != null) glyph.font = _font;
+            }
+        }
     }
 
-    /// <summary>Clone the authored template row and give its accent bar the U7-checkable `…__bar` name.</summary>
-    private GameObject CloneRow(string rowName)
+    private void InvokeClear()
     {
-        var go = Instantiate(_template, _buttons);
-        go.name = rowName;
-        go.SetActive(true);
-        var bar = FindDeepIn(go.transform, "Bar");
-        if (bar != null) bar.name = rowName + AccentBarSuffix;
-        var label = go.GetComponentInChildren<Text>(true);
-        if (_font != null && label != null) label.font = _font;
-        ApplyRoundedSprites(go.transform);
-        return go;
+        var r = _reg != null ? _reg.GetById(ClearableId) : null;
+        if (r == null || _clearMethod == null) return;
+        try { _clearMethod.Invoke(r, null); }
+        catch (Exception e) { Debug.LogWarning("[CrossPlatformRoomHud] clear failed: " + e.Message); }
     }
 
-    private Image FindBar(GameObject row)
+    private static T Part<T>(GameObject row, string name) where T : Component
     {
-        var t = FindDeepIn(row.transform, row.name + AccentBarSuffix) ?? FindDeepIn(row.transform, "Bar");
-        return t != null ? t.GetComponent<Image>() : null;
+        var t = FindDeepIn(row.transform, name);
+        return t != null ? t.GetComponent<T>() : null;
     }
 
     private void OnRegistered(IRoomContent c)
     {
-        if (c is IToggleableContent t) AddRow(t);
-        if (c.Id == ClearableId) AddClearRowIfPresent();
+        if (_wired && _reg != null) Rebuild();       // 페이지 구성이 바뀔 수 있으므로 통째로 다시 만든다
     }
 
-    private void OnToggled(IToggleableContent c, bool on)
-    {
-        if (c != null) RefreshRow(c.Id);
-        RefreshCount();
-    }
+    private void OnToggled(IToggleableContent c, bool on) { if (c != null) RefreshCell(c.Id); }
+
+    private void RefreshAll() { foreach (var e in _entries) RefreshCell(e.Id); }
 
     /// <summary>
-    /// Active state is shown by the accent bar (alpha 0 ↔ <see cref="HudTheme.Accent"/>) plus label brightness
-    /// (TextLo ↔ TextHi). Size never changes between states and faux-bold is never used — the theme forbids both.
+    /// State is told by FILL, not by text: ON = <see cref="HudTheme.Accent"/> disc; OFF = <see cref="HudTheme.Film"/>.
+    /// The glyph stays <see cref="HudTheme.GlyphDark"/> in BOTH states (v6) — which is exactly why Film has to be
+    /// opaque enough; see the arithmetic in HudTheme's header. There is no `": ON"` string anywhere, and the size
+    /// never changes between states.
     /// </summary>
-    private void RefreshRow(string id)
+    private void RefreshCell(string id)
     {
-        if (!_content.TryGetValue(id, out var c) || c == null) return;
-        bool on = c.IsEnabled;
+        var entry = _entries.FirstOrDefault(x => x.Id == id);
+        if (entry.Id == null) return;
+        bool on = entry.Content != null && entry.Content.IsEnabled;   // an action is never "on"
+        bool hover = _hovered.Contains(id);
+
+        if (_discs.TryGetValue(id, out var disc) && disc != null)
+            disc.color = on ? HudTheme.Accent : (hover ? HudTheme.FilmHover : HudTheme.Film);
+
+        if (_rings.TryGetValue(id, out var ring) && ring != null)
+            ring.color = HudTheme.RimTop;      // 링은 상태를 말하지 않는다 — 액센트는 채움 한 곳뿐
+
+        if (_glyphs.TryGetValue(id, out var glyph) && glyph != null)
+            glyph.color = HudTheme.GlyphDark;
 
         if (_labels.TryGetValue(id, out var label) && label != null)
         {
-            string name = string.IsNullOrEmpty(c.Meta.DisplayName) ? c.Id : c.Meta.DisplayName;
-            label.text  = $"{name} : {(on ? "ON" : "OFF")}";
-            label.color = on ? HudTheme.TextHi : HudTheme.TextLo;
-            label.fontSize  = HudTheme.FontSm;
-            label.fontStyle = FontStyle.Normal;      // never faux-bold: emphasis is weight (600) or colour, not Bold
+            label.color     = on ? HudTheme.TextHi : HudTheme.TextLo;
+            label.fontSize  = HudTheme.FontFoot;
+            label.fontStyle = FontStyle.Normal;      // never faux-bold: emphasis is weight (600) or colour
         }
-
-        if (_bars.TryGetValue(id, out var bar) && bar != null)
-        {
-            var col = HudTheme.Accent;               // the ONE accent meaning: this feature is active
-            col.a = on ? HudTheme.Accent.a : 0f;
-            bar.color = col;
-        }
-    }
-
-    private void RefreshCount()
-    {
-        if (_count == null || !_count.gameObject.activeInHierarchy || _measurementType == null) return;
-        int shared = UnityEngine.Object.FindObjectsByType(_measurementType, FindObjectsSortMode.None).Length;
-        _count.text = $"공유 측정: {shared} 개";
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────
     private Transform FindDeep(string childName) => FindDeepIn(transform, childName);
+
+    /// <summary>역할 접미사로 부품을 찾는다. 이름 앞부분(Tmpl/행 이름)이 무엇이든 역할은 접미사가 말한다.</summary>
+    private static Transform FindDeepBySuffix(Transform root, string suffix)
+    {
+        foreach (var t in root.GetComponentsInChildren<Transform>(true))
+            if (t.name.EndsWith(suffix)) return t;
+        return null;
+    }
 
     private static Transform FindDeepIn(Transform root, string childName)
     {
@@ -307,25 +403,34 @@ public class CrossPlatformRoomHud : MonoBehaviour
     }
 
     /// <summary>
-    /// Re-apply the procedural rounded-rect sprites. They are created with HideFlags.HideAndDontSave (deliberately —
-    /// it keeps the radius a token instead of an asset, so no Addressables/baked-base question ever arises), which
-    /// means a saved scene loses the reference. Re-applying at Start guarantees the RUNTIME — the thing the QuickTest
-    /// verifies and the human looks at — always matches the theme's radius.
+    /// Re-apply the procedural sprites. They are HideFlags.HideAndDontSave (deliberately — it keeps the shapes tokens
+    /// instead of assets, so no Addressables/baked-base question arises), which means a saved scene loses the
+    /// reference. Re-applying at Start guarantees the RUNTIME always matches the theme.
+    /// Shape is chosen by ROLE SUFFIX, so exactly one place knows which part is a circle and which a box.
     /// </summary>
-    private void ApplyRoundedSprites() => ApplyRoundedSprites(transform);
+    private void ApplySprites() => ApplySprites(transform);
 
-    private static void ApplyRoundedSprites(Transform root)
+    private static void ApplySprites(Transform root)
     {
         foreach (var img in root.GetComponentsInChildren<Image>(true))
         {
-            if (img.name == "PanelEdge") continue;                       // the 1px specular strip stays square
-            int radius = img.name.EndsWith(AccentBarSuffix) || img.name == "Bar"
-                ? HudTheme.BarW
-                : HudTheme.Radius;
-            img.sprite = HudSprites.RoundedRect(radius);
-            img.type   = Image.Type.Sliced;
+            string n = img.name;
+            if (n == "PanelEdge") continue;                                   // the specular strip stays a plain rect
+            if (n.EndsWith(HudTheme.Roles.Icon)) continue;                    // Meta.Icon supplies its own sprite
+
+            if (n == "Panel")           Set(img, HudSprites.RoundedRect(HudTheme.Radius), Image.Type.Sliced);
+            else if (n == "PanelFrame") Set(img, HudSprites.RoundedFrame(HudTheme.Radius, HudTheme.BorderW), Image.Type.Sliced);
+            else if (n.EndsWith(HudTheme.Roles.Dot))
+                Set(img, HudSprites.Circle(HudTheme.Space2), Image.Type.Simple);
+            else if (n.EndsWith(HudTheme.Roles.Ring))
+                // 위 밝고 아래 어두운 2톤 테두리를 **한 장**으로: 색은 RimTop, 스프라이트가 아래로 알파를 깎는다.
+                Set(img, HudSprites.RingGraded(HudTheme.CircleD, HudTheme.RimW, HudTheme.RimBot.a / HudTheme.RimTop.a), Image.Type.Simple);
+            else if (n.EndsWith(HudTheme.Roles.Disc))
+                Set(img, HudSprites.Circle(HudTheme.CircleD), Image.Type.Simple);
         }
     }
+
+    static void Set(Image img, Sprite s, Image.Type t) { img.sprite = s; img.type = t; }
 
     private static Type FindType(string simpleOrFull)
     {
@@ -356,8 +461,7 @@ public class CrossPlatformRoomHud : MonoBehaviour
 
     /// <summary>
     /// The theme's font is PyeojinGothic 400/600. studio ships no such asset yet, so we look for one and fall back to a
-    /// dynamic OS font (build-studio-room §5: studio has no Korean TMP/font asset, and the legacy-Text + OS-font path is
-    /// the one proven to render Korean). The fallback is a WARN, not a failure — see <see cref="FontFallback"/>.
+    /// dynamic OS font (build-studio-room §5). The fallback is a WARN, not a failure — see <see cref="FontFallback"/>.
     /// </summary>
     private Font FindFont()
     {
@@ -371,7 +475,7 @@ public class CrossPlatformRoomHud : MonoBehaviour
         {
             var f = Font.CreateDynamicFontFromOSFont(
                 new[] { "Malgun Gothic", "맑은 고딕", "Noto Sans CJK KR", "NanumGothic", "Gulim", "Batang", "Arial" },
-                HudTheme.FontSm);
+                HudTheme.FontBody);
             if (f != null) return f;
         }
         catch { }

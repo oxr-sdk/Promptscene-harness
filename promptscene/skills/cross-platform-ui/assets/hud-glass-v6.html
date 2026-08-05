@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>PromptScene HUD · Glass v4 (페이지 그리드)</title>
+<link rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
+<style>
+/* ==========================================================================
+   Glass v4 — 제목·문구 제거. 4개/페이지 + 좌우 페이징 + 넘길 때만 보이는 점.
+   간격 산술 (v6: 바깥 = 안쪽의 2배):
+     InnerGap 24 = 원끼리 간격 (히트박스 padding 12 × 2)
+     OuterMargin 48 = 패널 끝 ~ 원, 네 변 모두
+     → 바깥이 안쪽보다 넓어야 4개가 "한 덩어리"로 읽힌다(근접성 원리).
+     패널 padding은 손으로 넣지 않고 유도한다 — 그래야 다시 어긋날 수 없다:
+       padX = Outer − HitPad            = 48 − 12      = 36
+       padY = Outer − HitPad − DotsRowH = 48 − 12 − 24 = 12
+     패널 = 4×144 + 36×2 = 648px = 0.54 m @1200px/m → 1.5m에서 20.5°
+   점은 레이아웃을 차지한 채 opacity만 바뀐다(나타날 때 패널이 안 흔들리게).
+   ⚠️ v5 수정 1 — 위/아래 여백 대칭: 점 줄(24)과 같은 높이의 빈 줄을 위에 미러링해 둔다.
+      패널 padding만 키우지 않는 이유 = 점 줄 높이가 바뀌면 위도 자동으로 따라가야 하므로.
+   ⚠️ v5 수정 2 — setPointerCapture 제거. 캡처가 걸리면 click이 캡처 대상(viewport)으로
+      재타깃되어 버튼의 click 리스너에 절대 도달하지 않는다 = v4에서 토글이 죽은 원인.
+      드래그 추적은 window의 pointermove/pointerup으로 하고, 버튼은 평소대로 click을 받는다.
+   ⚠️ 라벨 높이 고정: 페이지마다 라벨 줄 수가 달라지면 넘길 때 패널 높이가 튄다.
+   ========================================================================== */
+
+@font-face{font-family:'PyeojinGothic';font-weight:400;font-display:block;
+  src:url('https://cdn.jsdelivr.net/gh/Jihwan-Suh/PyeojinGothic/fonts/web/woff/PyeojinGothic-Regular.woff') format('woff');}
+@font-face{font-family:'PyeojinGothic';font-weight:600;font-display:block;
+  src:url('https://cdn.jsdelivr.net/gh/Jihwan-Suh/PyeojinGothic/fonts/web/woff/PyeojinGothic-SemiBold.woff') format('woff');}
+
+:root{
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px; --space-7:48px;
+  --font-foot:16px;  --w-body:400;  --w-emph:600;
+
+  --panel-a:.42;
+  --panel:rgba(10,13,18,var(--panel-a));
+
+  --film:rgba(255,255,255,.28);
+  --film-hi:rgba(255,255,255,.38);
+  --rim-top:rgba(255,255,255,.55);
+  --rim-bot:rgba(255,255,255,.12);
+
+  --text-hi:#F2F4F8;
+  --text-lo:#C3CAD6;
+  --accent:#5AC8FA;
+  --glyph-dark:#0A0D12;
+
+  --dot:rgba(255,255,255,.28);
+  --dot-on:#F2F4F8;
+
+  --radius:24px;
+  --circle:120px;  --hit:144px;  --pad:12px;  --glyph:48px;
+  --panel-w:648px;
+  --dots-h:24px;      /* 점 줄 높이 = 위쪽 미러 여백 높이 */
+  /* 바깥 여백 = 안쪽 간격의 2배. 패널 padding은 여기서 유도한다 */
+  --outer:48px;
+  --pad-x:calc(var(--outer) - var(--pad));                 /* 36 */
+  --pad-y:calc(var(--outer) - var(--pad) - var(--dots-h)); /* 12 — 음수 되면 안 됨 */
+  --label-h:20px;     /* 라벨 1줄 고정. 페이지 간 높이 튐 방지 */
+
+  --tmp-outline:0 0 2px rgba(10,13,18,.95), 0 0 2px rgba(10,13,18,.95), 0 2px 6px rgba(0,0,0,.55);
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'PyeojinGothic',sans-serif;font-weight:var(--w-body);-webkit-font-smoothing:antialiased;}
+.msym{font-family:'Material Symbols Outlined';font-size:var(--glyph);line-height:1;
+  -webkit-font-feature-settings:'liga';}
+
+/* ===== 포팅 대상 아님 ==================================================== */
+.stage{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:100vh;padding:40px 20px;gap:24px;}
+.stage.room  {background:#191c22 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="%23191c22"/><path d="M0 119h120M119 0v120" stroke="%23262b34" stroke-width="2"/></svg>');}
+.stage.bright{background:#cfd6e0 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" fill="%23dfe5ee"/><circle cx="40" cy="40" r="34" fill="%23f7f9fc"/><rect x="90" y="70" width="60" height="80" fill="%23bcc6d4"/></svg>');}
+.stage.busy  {background:#3a2f4a url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90"><rect width="90" height="90" fill="%233a2f4a"/><circle cx="22" cy="22" r="16" fill="%23e0663f"/><rect x="50" y="46" width="34" height="34" fill="%2337c07a"/><path d="M0 70h90" stroke="%23f2e15c" stroke-width="6"/></svg>');}
+.controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;font-size:13px;}
+.controls button{font-family:inherit;font-size:13px;padding:6px 12px;border:1px solid #4a5160;
+  border-radius:6px;background:#22262f;color:#c8cfda;cursor:pointer;}
+.controls button.on{border-color:#5AC8FA;color:#5AC8FA;}
+.caption{font-size:12px;line-height:1.7;color:#e6eaf0;text-align:center;max-width:660px;
+  background:rgba(10,13,18,.62);padding:12px 16px;border-radius:8px;}
+.blur-on .ib__disc{backdrop-filter:blur(14px) saturate(1.5);}
+
+/* ===== 포팅 대상 ======================================================== */
+
+.panel{display:flex;flex-direction:column;width:var(--panel-w);
+  user-select:none;-webkit-user-select:none;
+  padding:var(--pad-y) var(--pad-x);
+  background:var(--panel);border-radius:var(--radius);
+  border:1px solid rgba(255,255,255,.14);border-top-color:rgba(255,255,255,.26);}
+
+/* 뷰포트 = 한 페이지 폭. 넘치는 페이지는 잘린다 (→ uGUI RectMask2D) */
+.viewport{overflow:hidden;width:100%;cursor:grab;}
+.viewport.dragging{cursor:grabbing;}
+/* 트랙 = 페이지들을 가로로 이어붙인 것 (→ ScrollRect content) */
+.track{display:flex;flex-direction:row;transition:transform .22s ease-out;}
+.track.no-anim{transition:none;}
+.page{display:flex;flex-direction:row;width:calc(var(--hit) * 4);flex-shrink:0;}
+
+/* IconButton — 히트박스 144 안에 시각 원 120. 패딩 12가 곧 간격의 절반 */
+.ib{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+  gap:var(--space-2);width:var(--hit);padding:var(--pad);cursor:pointer;}
+.ib__disc{width:var(--circle);height:var(--circle);border-radius:var(--circle);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  background-color:var(--film);
+  background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><filter id="n"><feTurbulence baseFrequency="0.9" numOctaves="2"/><feColorMatrix values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0"/></filter><rect width="64" height="64" filter="url(%23n)"/></svg>');
+  border:2px solid var(--rim-top);border-bottom-color:var(--rim-bot);
+  color:var(--glyph-dark);transition:background-color .12s;}
+.ib:hover .ib__disc{background-color:var(--film-hi);}
+.ib__label{font-size:var(--font-foot);color:var(--text-lo);text-align:center;line-height:1.25;
+  height:var(--label-h);overflow:hidden;white-space:nowrap;text-shadow:var(--tmp-outline);}
+.ib.is-on .ib__disc{background-color:var(--accent);border-color:rgba(255,255,255,.7);}
+.ib.is-on .ib__label{color:var(--text-hi);font-weight:var(--w-emph);}
+
+/* 위쪽 미러 여백 — 점 줄과 같은 높이. 이게 있어야 위/아래가 대칭이 된다 */
+.topspacer{height:var(--dots-h);flex-shrink:0;}
+
+/* 점 — 자리는 항상 차지하고 opacity만 변한다. 넘길 때만 보임 */
+.dots{display:flex;flex-direction:row;justify-content:center;align-items:center;
+  gap:var(--space-2);height:var(--dots-h);flex-shrink:0;opacity:0;transition:opacity .18s;}
+.dots.show{opacity:1;}
+.dot{width:var(--space-2);height:var(--space-2);border-radius:var(--space-2);
+  background:var(--dot);transition:background-color .18s;}
+.dot.is-current{background:var(--dot-on);}
+</style>
+</head>
+<body>
+<div class="stage room" id="stage">
+
+  <div class="panel">
+    <div class="topspacer"></div>
+    <div class="viewport" id="vp">
+      <div class="track" id="track">
+        <div class="page">
+          <div class="ib is-on"><div class="ib__disc"><span class="msym">chat</span></div><div class="ib__label">채팅</div></div>
+          <div class="ib"><div class="ib__disc"><span class="msym">chair</span></div><div class="ib__label">의자 착석</div></div>
+          <div class="ib"><div class="ib__disc"><span class="msym">straighten</span></div><div class="ib__label">측정</div></div>
+          <div class="ib"><div class="ib__disc"><span class="msym">back_hand</span></div><div class="ib__label">잡기</div></div>
+        </div>
+        <div class="page">
+          <div class="ib"><div class="ib__disc"><span class="msym">adjust</span></div><div class="ib__label">과녁</div></div>
+          <div class="ib"><div class="ib__disc"><span class="msym">scoreboard</span></div><div class="ib__label">점수판</div></div>
+          <div class="ib"><div class="ib__disc"><span class="msym">sports_esports</span></div><div class="ib__label">다트</div></div>
+          <div class="ib"><div class="ib__disc"><span class="msym">delete</span></div><div class="ib__label">측정 지우기</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="dots" id="dots"><div class="dot is-current"></div><div class="dot"></div></div>
+  </div>
+
+  <div class="controls">
+    <button class="on" data-bg="room">어두운 룸</button>
+    <button data-bg="bright">밝은 창가</button>
+    <button data-bg="busy">잡다한 배경</button>
+    <button id="alpha">패널 α .42 ⇄ .76</button>
+    <button id="blur">⛔ 원 블러 (Step 2 = 청구서)</button>
+  </div>
+  <div class="caption">
+    좌우로 <b>드래그</b>하거나 <b>휠</b>로 페이지를 넘겨보세요. 점은 넘기는 동안만 보이고 1.2초 후 사라집니다.<br>
+    간격은 전부 24로 통일 — 원 120 + 히트박스 패딩 12가 곧 간격의 절반입니다.
+    600px = 0.50 m → 1.5 m에서 19&deg;.
+  </div>
+</div>
+
+<script>
+var track=document.getElementById('track'), vp=document.getElementById('vp'),
+    dotsEl=document.getElementById('dots'), dots=dotsEl.querySelectorAll('.dot'),
+    page=0, pages=2, pageW=0, startX=0, dx=0, dragging=false, moved=false, hideT=null;
+
+function measure(){ pageW = vp.clientWidth; apply(true); }
+function apply(noAnim){
+  track.classList.toggle('no-anim', !!noAnim);
+  track.style.transform = 'translateX(' + (-page*pageW + (dragging?dx:0)) + 'px)';
+  dots.forEach(function(d,i){ d.classList.toggle('is-current', i===page); });
+}
+function reveal(){
+  dotsEl.classList.add('show');
+  clearTimeout(hideT);
+  hideT=setTimeout(function(){ dotsEl.classList.remove('show'); }, 1200);
+}
+function go(n){ page=Math.max(0,Math.min(pages-1,n)); dragging=false; dx=0; apply(false); reveal(); }
+
+// ⚠️ setPointerCapture를 쓰지 않는다. 캡처가 걸리면 click이 viewport로 재타깃되어
+// 버튼의 click 리스너에 도달하지 못한다(= v4의 토글 사망 원인).
+vp.addEventListener('pointerdown',function(e){
+  dragging=true; moved=false; startX=e.clientX; dx=0;
+  vp.classList.add('dragging'); reveal();
+});
+window.addEventListener('pointermove',function(e){
+  if(!dragging) return;
+  dx=e.clientX-startX;
+  if(Math.abs(dx)>8) moved=true;        // 드래그 임계값 — 이하면 버튼 클릭으로 간다
+  apply(true); reveal();
+});
+function endDrag(){
+  if(!dragging) return;
+  vp.classList.remove('dragging');
+  var t=dx; dragging=false; dx=0;
+  if(Math.abs(t)>pageW*0.2) go(page + (t<0?1:-1)); else go(page);
+}
+window.addEventListener('pointerup',endDrag);
+window.addEventListener('pointercancel',endDrag);
+
+document.querySelectorAll('.ib').forEach(function(b){
+  b.addEventListener('click',function(){ if(moved) return; b.classList.toggle('is-on'); });
+});
+vp.addEventListener('wheel',function(e){
+  e.preventDefault(); go(page + (e.deltaY>0||e.deltaX>0?1:-1));
+},{passive:false});
+dotsEl.addEventListener('click',function(e){
+  var i=Array.prototype.indexOf.call(dots,e.target); if(i>=0) go(i);
+});
+
+var stage=document.getElementById('stage'), big=false;
+document.querySelectorAll('.controls button[data-bg]').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.controls button[data-bg]').forEach(function(x){x.classList.remove('on');});
+    b.classList.add('on');
+    var blur=stage.classList.contains('blur-on');
+    stage.className='stage '+b.dataset.bg+(blur?' blur-on':'');
+  });
+});
+document.getElementById('blur').addEventListener('click',function(){
+  this.classList.toggle('on'); stage.classList.toggle('blur-on');
+});
+document.getElementById('alpha').addEventListener('click',function(){
+  big=!big; this.classList.toggle('on');
+  document.documentElement.style.setProperty('--panel-a', big?'.76':'.42');
+});
+window.addEventListener('resize',measure); measure();
+</script>
+</body>
+</html>
