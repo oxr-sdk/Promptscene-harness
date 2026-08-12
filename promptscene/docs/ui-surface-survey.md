@@ -9,6 +9,10 @@
 >
 > 공개 레포 규율: private SDK(`com.oxr-sdk.*`)·상용 에셋(FishNet)·Unity 샘플의 **코드 원문은 싣지 않는다** —
 > 동작 서술 + `파일:라인` 포인터로 기록한다.
+>
+> **⚡ 2026-08-05 라이브 프로브로 갱신됨 → §12.** 두 판정이 뒤집혔다: **`M` 키는 비어 있지 않다**(정적 grep이 놓친
+> 런타임 액션이 물고 있다), 그리고 **EventSystem 승자는 결정적**이지만 **데스크톱 채팅은 EventSystem 밖**이라
+> 억제 설계 전제가 바뀐다. 아래 판정 4·5는 §12 기준으로 이미 고쳐 적었다.
 
 ---
 
@@ -22,10 +26,12 @@
 3. **Y 키는 우리 것이 아니다.** 소유자는 **XRI 3.3.1 XR Interaction Simulator 샘플**이고, 그 샘플은
    `QuickStart.unity`(스튜디오 QuickTest 부트 씬)에만 있다 — **출시 콘텐츠 번들에는 안 나간다.** 그래도 QuickTest
    판정 중 항상 켜져 있으므로 소환 키 후보에서 **제외**한다(§4).
-4. **소환 키 최종 후보: 데스크톱 `M`(1순위) / `F1`(2순위), XR 왼손 `secondaryButton`(=Y, 1순위) / 왼손
-   `primaryButton`(=X, 2순위).** 오른손 `primaryButton`(A)은 XRI `JumpProvider`가 선점했다.
+4. **소환 키 최종: 데스크톱 `F1` 단독 확정, XR 왼손 `secondaryButton`(=Y).** 오른손 `primaryButton`(A)은 XRI
+   `JumpProvider`가 선점했다. ⚡ **`M`은 탈락**(2026-08-05) — 라이브 열거에서 `XR Interaction Controller Controls ›
+   Menu` + `XR Interaction Hand Controls › Pinch`가 물고 있다(§12-B). 정적 grep은 이 둘을 못 봤다.
 5. **텍스트 입력 중 핫키 억제 장치는 존재하지 않는다 — 현존 버그로 확정.** 채팅 입력창에 `e`를 치면 의자에 앉고,
-   `wasd`를 치면 아바타가 걸어간다(§4-C).
+   `wasd`를 치면 아바타가 걸어간다(§4-C). ⚡ **억제를 EventSystem으로 구현하면 fail-open이다**(§12-A):
+   데스크톱 채팅은 IMGUI라 EventSystem에 포커스를 등록하지 않는다.
 6. **실제로 그릴 수 있는 설정은 3개뿐이다**(그래픽 품질 2단계 / 마스터 볼륨 / 마이크·스피커 음소거).
    해상도·렌더스케일은 조건부, 마이크 **장치 선택**과 개별 볼륨 슬라이더는 **개척 청구서행**(§5).
 7. **`Leave game`은 흡수할 수 없다 — 지금 아무것도 하지 않는다.** 직렬 `onClick`은 타깃 null, 코드 경로는
@@ -173,8 +179,10 @@
 - ⇒ **QuickTest에서는 ①이 먼저 생기고 ②가 뒤에 스폰되어 2개가 공존한다.** 입력 모듈 종류도 다르다
   (`StandaloneInputModule` vs `InputSystemUIInputModule`/`XRUIInputModule`).
   Unity는 `EventSystem.current`를 **하나만** 유효하게 두고 경고를 낸다 → **어느 쪽이 이기느냐에 따라 uGUI 클릭
-  경로가 달라진다.** 셸을 uGUI로 지을 때 반드시 밟게 될 지점이다. ⚠️미확인: 실제로 어느 쪽이 `current`가 되는지는
-  라이브 1회 확인이 필요(현 조사는 읽기 전용이라 미실행).
+  경로가 달라진다.** 셸을 uGUI로 지을 때 반드시 밟게 될 지점이다.
+  ✅ **닫힘(2026-08-05, §12-A): 승자는 `[QuickTest] EventSystem`(`StandaloneInputModule`, QuickStart 씬)이고
+  Play 2회 재현에서 동일 — 결정적.** 패자(아바타 쪽 `InputSystemUIInputModule`)는 `currentInputModule=NULL`이라
+  **아예 틱하지 않는다** → 선택을 가질 수 없다.
 
 ---
 
@@ -270,17 +278,21 @@ XRI 기본 핸드 메뉴와 충돌할 일은 없다.
 
 | 키 | (A) 출하 룸 | (B) QuickTest | 평가 |
 |---|---|---|---|
-| **`M`** | free | free | ⭐ **1순위** — 니모닉(Menu), 어느 맥락에도 충돌 없음 |
-| **`F1`** | free | free | ⭐ **2순위** — 관습적 "도움말/메뉴", 텍스트 입력과 절대 안 겹침(§4-C가 안 고쳐져도 안전) |
-| `G` `I` `J` `K` `L` `N` `O` `P` `U` `B` | free | free | 후보군 |
-| `F2`~`F12` | free | free | 후보군 |
-| `1`~`8` | free | free | 후보군(단 `9`/`0`은 시뮬레이터가 사용) |
+| ~~**`M`**~~ | free | ⛔ **점유**(Controller Menu / Hands Pinch) | ⚡ **탈락** — §12-B 라이브 열거. 아래 정정 참조 |
+| **`F1`** | free | free | ⭐ **1순위 확정** — 라이브 열거로도 0건(§12-B). 텍스트 입력과 절대 안 겹침(§4-C가 안 고쳐져도 안전) |
+| ~~`G` `I` `J` `K` `L` `N` `O` `P`~~ | free | ⛔ **점유** | ⚡ **탈락** — 전부 시뮬레이터 장치 에뮬레이션이 물고 있다(§12-B) |
+| `F2`~`F12` | free | free | ✅ 후보군 (라이브 열거로 12개 전부 FREE 확인) |
+| `U` `B` | free | ⚠️미확인 | §12-B 열거에는 없었으나 개별 확인 안 함 |
+| `1`~`8` | free | ⛔ **점유**(Controller 버튼 에뮬레이션) | ⚡ **탈락** — §12-B |
 | `Tab` | free | ❌ 시뮬레이터 장치 순환 | 비추천 |
 | `` ` `` `Space` `Shift` `R` `H` `V` `C` `Z` `[` `]` `X` `Y` | free | ❌ 시뮬레이터 | **제외** |
 | `Esc` | ❌ uGUI Cancel | ❌ | **제외** |
 
-> **`F1`을 강하게 권함(2순위지만 실질 동률):** §4-C가 미해결인 동안 `M`은 채팅 타이핑 중 셸을 열어버린다.
-> `F1`은 텍스트 입력에 절대 섞이지 않으므로 **억제 장치 없이도 안전**하다. 억제 장치를 먼저 만들면 `M`이 낫다.
+> ⚡ **정정 (2026-08-05).** 위 표의 원본은 정적 grep 기반이었고 **틀렸다.** 라이브 `InputSystem.ListEnabledActions()`는
+> 활성 액션 152개가 `<Keyboard>` 바인딩 85건·서로 다른 키 51개를 물고 있음을 보여준다 — 정적 grep이 본 것의 몇 배다.
+> 놓친 출처가 셋: ① `XR Interaction Controller Controls` ② `XR Interaction Hand Controls`(둘 다 시뮬레이터의 가상
+> 장치 에뮬레이션) ③ **`(no asset) › Debug Menu`** — 에셋 없이 **코드에서 생성된** 액션맵이라 grep으로는 원리적으로
+> 안 보인다. **`F1`이 유일하게 두 맥락 모두에서 검증된 빈 키다.** 상세는 §12-B.
 
 **XR 소환 버튼 후보:** **왼손 `secondaryButton`(Y) ⭐1순위** / 왼손 `primaryButton`(X) 2순위 / 오른손
 `secondaryButton`(B) 3순위. `menu`는 회피, 오른손 `primaryButton`(A)은 Jump가 선점.
@@ -299,7 +311,7 @@ XRI 기본 핸드 메뉴와 충돌할 일은 없다.
 | **Foveated rendering** | ❌ **없음** | `foveat*` 심볼 프로젝트 전역 0건 ✅소스. OpenXR foveation 설정 노출부 없음 | ❌ 개척 청구서 |
 | **마스터 볼륨** | ✅ 있음 | `AudioListener.volume = 1` ✅측정. **`AudioMixer` 에셋은 프로젝트에 0개**(`*.mixer` 전역 0건 ✅소스), 코드에서 `AudioMixer`/`AudioListener` 참조도 0건 | ✅ 그린다 — **`AudioListener.volume` 슬라이더 하나뿐.** 그룹별(음성/효과음/BGM) 분리는 **불가** |
 | **효과음 / BGM 볼륨** | ❌ **없음** | 룸 씬·프리팹 전체에서 `AudioSource`는 아바타 프리팹 3종의 **음성 출력 앵커 1개씩**이 전부 ✅소스. BGM/SFX 소스 0개 | ❌ 조절할 실물 없음 → 개척 청구서 |
-| **마이크 음소거** | ✅ **있음 (진짜)** | **MetaVoiceChat이 실재하고 아바타에 배선되어 있다.** `Desktop.prefab`/`UnityXR.prefab`/`XrealXR.prefab` 루트에 `XumMetaVc`(=`MetaVc` 상속) + `VcMicAudioInput` + `VcAudioSourceOutput` + `XumFishNetNetProvider` + `XumMicrophonePermissionRequester` ✅소스. 타입 전부 로드됨 ✅측정. 노출 상태: **`isInputMuted`**(내 마이크) / **`isDeafened`**(전체 안 듣기) / `isOutputMuted`(특정 원격) / `isSpeaking`(표시용) — 전부 `MetaSerializableReactiveProperty<bool>` ✅소스 `Assets/MetaVoiceChat/MetaVc.cs:44-51` | ✅ **그린다 — 마이크 토글 + 전체 음소거(deafen) 토글 2개.** ⚠️미확인: 2클라 음성 실동작은 **라이브 미검증** |
+| **마이크 음소거** | ✅ **있음 (진짜)** | **MetaVoiceChat이 실재하고 아바타에 배선되어 있다.** `Desktop.prefab`/`UnityXR.prefab`/`XrealXR.prefab` 루트에 `XumMetaVc`(=`MetaVc` 상속) + `VcMicAudioInput` + `VcAudioSourceOutput` + `XumFishNetNetProvider` + `XumMicrophonePermissionRequester` ✅소스. 타입 전부 로드됨 ✅측정. 노출 상태: **`isInputMuted`**(내 마이크) / **`isDeafened`**(전체 안 듣기) / `isOutputMuted`(특정 원격) / `isSpeaking`(표시용) — 전부 `MetaSerializableReactiveProperty<bool>` ✅소스 `Assets/MetaVoiceChat/MetaVc.cs:44-51` | ✅ **그린다 — 마이크 토글 + 전체 음소거(deafen) 토글 2개.** ⚡ **부분 닫힘(2026-08-05, §12-C):** 컴포넌트가 아바타에 **살아서 enabled**, 마이크 장치 실재, `isInputMuted`/`isDeafened` 쓰기가 **예외 없이 관측 가능하게 반영·원복**됨. ⚠️**잔존**: 가청 효과·2클라 전파 = **절반만 증명된 컨트롤** |
 | **마이크 장치 선택** | ❌ 없음 | `VcMicAudioInput`에 장치 선택 UI/파라미터 노출 확인 안 됨, 이를 쓰는 코드 0건 | ❌ 개척 청구서 |
 | **음성 입출력 볼륨(게인)** | ❌ 없음 | `VcConfig`는 Opus 코덱·지터 설정만(볼륨/게인 필드 없음) ✅소스 | ❌ 개척 청구서 |
 | **말하는 사람 표시** | ✅ 있음 | `isSpeaking` 리액티브 프로퍼티 ✅소스 | ✅ 그릴 수 있음 — **설정이 아니라 "참가자" 표면**(§7-1 참조) |
@@ -420,9 +432,10 @@ PlayerListButton.OnClick()          → RoomEventBridge.OnShowPlayersListRequest
 탭은 **설정/기능/나가기(/참가자)** 로만 나눈다. Category 기반 그룹핑은 **콘텐츠가 10개를 넘을 때** 재검토한다.
 그때 Category를 셸의 정본으로 쓰려면 값 체계부터 다시 정해야 한다(현재 값은 **분류가 아니라 라벨**에 가깝다).
 
-**③ 소환 키 최종 후보**
-- **데스크톱: `F1`(1순위) / `M`(2순위).** `F1`은 텍스트 입력에 안 섞여 **I-7 미해결 상태에서도 안전**.
-  I-7을 먼저 닫으면 `M`이 더 낫다(니모닉). **`Y`·`X`·`Tab`·`Space`·`` ` ``·`Esc`는 제외**(§4-D).
+**③ 소환 키 최종 후보** ⚡ 2026-08-05 갱신
+- **데스크톱: `F1` 단독 확정.** 라이브 열거에서 두 맥락 모두 0건인 **유일한** 후보다(§12-B).
+  ~~`M`(2순위)~~ 은 **탈락** — 시뮬레이터의 Controller `Menu` + Hands `Pinch`가 물고 있다.
+  대안이 필요하면 `F2`~`F12`(12개 전부 라이브 FREE). **`Y`·`X`·`Tab`·`Space`·`` ` ``·`Esc`·`1`~`9`·`G I J K L N O P`는 제외**.
 - **XR: 왼손 `secondaryButton`(Y) 1순위**, 왼손 `primaryButton`(X) 2순위.
   `menu` 회피(브리프 지시 + Quest OS 선점), 오른손 `A`는 `JumpProvider` 선점.
 
@@ -431,6 +444,9 @@ PlayerListButton.OnClick()          → RoomEventBridge.OnShowPlayersListRequest
 `SuppressWorldClick`과 동형의 클레임 API 1개(SYSTEMS 파일 1개 추가, **계약 무수정**) + 소비 지점 4곳
 (`ChatContent`, `ChatWorldPanel`, `DummyController`, `ChairSitContent`).
 ⚠️ `DummyController`는 우리 PromptScene 폴더 밖(studio 앱 코드)이라 **수정 소유권 확인 필요**.
+⚡ **2026-08-05 추가 — 구현 방식이 확정됐다(§12-A):** 억제는 **클레임 API여야 하고, `EventSystem`을 쿼리해서는 안 된다.**
+데스크톱 채팅은 IMGUI(`GUI.GetNameOfFocusedControl()`)라 EventSystem에 포커스를 등록하지 않는다 —
+`EventSystem.current.currentSelectedGameObject`로 억제하면 **VR 입력창만 막고 데스크톱 채팅은 그대로 뚫린다**(fail-open).
 
 **⑤ Leave game 흡수 가능한가?**
 **불가 — 흡수할 동작이 없다.** 직렬 `onClick`은 NULL 타깃 + 존재하지 않는 어셈블리(MST) 참조, 코드 경로는
@@ -476,6 +492,208 @@ PlayerListButton.OnClick()          → RoomEventBridge.OnShowPlayersListRequest
 - PackageCache·매니페스트 **읽기만** 함(수정 0건).
 - 백엔드 불확실 항목은 전부 **⚠️미확인**으로 표기(XR 렌더스케일, 음성 라이브 동작, EventSystem 승자,
   닉네임 편집, runtime 플레이어의 `RoomLeaveHandler`).
+
+---
+
+## 12. 라이브 확인 (2026-08-05)
+
+> **성격: Play 1회 진입 정찰. 고친 것 0건.** 발견한 결함은 전부 여기 적고 끝냈다.
+> 원본 로그: `XumFlow-studio/Temp/ps_probe_result.txt`(330줄, 정리 단계에서 삭제).
+
+### 12-0. 조건과 무결성 증거
+
+| 항목 | 값 |
+|---|---|
+| promptscene 플러그인 | **0.2.0**, 설치 2026-07-27 16:33 → **성역 규칙 부재 상태 그대로**(읽기 전용이라 무해) |
+| unity-mcp | `com.ivanmurzak.unity.mcp@0.66.0` (Registry, 2026-07-23 13:19:54) |
+| Unity | 6000.3.11f1 |
+| 드라이버 | `PS_VerifyUI.Setup/Teardown` 패턴 재사용, 스냅샷 파일만 분리(`ps_probe_orig.txt`) |
+| 부트 | `QuickStart` **Single** → Setup(host, `roomSceneKey=AssembleRoom`) → Play → 15초 |
+| 부트 건강 | `cameras=1` · `Desktop(Clone)` 스폰 · `RoomCore.Instance=True` · 레지스트리 2개(`chat`,`chair-sit`) |
+| 콘솔 | **Error 0건** (전 구간) |
+| **디스크 증거** | `QuickStart.unity` **before/after 동일**: mtime `2026-08-03 11:03:30.555378800`, size `13271`. `AssembleRoom.unity`도 무변경. 종료 시 개방 씬 `QuickStart(clean)` |
+| 원복 | `roomSceneKey` `AssembleRoom` → **`Scenes/T_RoomA`**(원본) 복원, 스냅샷 삭제 |
+
+⚠️ 레지스트리가 **6개가 아니라 2개**인 것은 정상이다 — `AssembleRoom`에 올라간 콘텐츠가 둘뿐이라는 §1의 기록 그대로다.
+
+---
+
+### 12-A. 프로브 A — EventSystem 승자 + 억제 쿼리 실사격 ⛔핵심
+
+#### A-1 인스턴스 전수
+
+| # | 이름 | InstanceID | 씬 | 경로 | enabled / active | 붙은 모듈 | `currentInputModule` | `sendNavigationEvents` |
+|---|---|---|---|---|---|---|---|---|
+| ① | `[QuickTest] EventSystem` | **-5710** | QuickStart | (루트) | True / True | `StandaloneInputModule` | **`StandaloneInputModule`** | True |
+| ② | `EventSystem` | -7072 | AssembleRoom | `Desktop(Clone)/OnlyClient/EventSystem` | True / True | `InputSystemUIInputModule` | **`NULL`** | True |
+
+**`EventSystem.current` = ① `[QuickTest] EventSystem` (id -5710).**
+
+⛔ **핵심은 `current`가 누구냐보다 `currentInputModule=NULL`이다.** 패자 ②는 컴포넌트가 enabled인데도 **입력 모듈이
+틱하지 않는다** — Unity의 `EventSystem.Update()`가 `current != this`면 즉시 리턴하기 때문이다. 즉 **패자는 선택을
+취득할 수 없다.** "두 인스턴스에 포커스가 나뉘어 등록될 수 있다"는 가정은 **성립하지 않는다.**
+
+#### A-2 결정적 테스트 — 포커스는 어디에 등록되는가
+
+`Contents.GetById("chat").SetEnabled(true)`(예외 없음, `IsEnabled` False→True) 후 입력 필드에 `Select()` +
+`ActivateInputField()`를 주입하고 **다음 프레임에** 판독:
+
+| 인스턴스 | `currentSelectedGameObject` |
+|---|---|
+| ① `[QuickTest] EventSystem` **(current)** | `===== FEATURES =====/Chat/ChatWorldCanvas/Panel/Row/Input` |
+| ② 아바타 `EventSystem` | **NULL** |
+
+`field.isFocused = **True**` (`activeInHierarchy=True`).
+※ 첫 주입은 패널이 아직 비활성이라 `isFocused=False`가 나왔다 — 패널 활성 후 **재주입해 깨끗한 값을 얻었다.**
+
+발견 3건(전부 관측):
+- **입력 필드는 프로젝트 전체에 1개뿐이고 `TMP_InputField`가 아니라 uGUI `InputField`다** — VR용 `ChatWorldPanel` 소속.
+- **`chat` ON이면 데스크톱에서도 `ChatWorldCanvas`가 활성**된다(캔버스 덤프에서 `active=True`). 즉 데스크톱에서
+  **IMGUI 채팅 패널과 VR 월드 채팅 패널이 동시에 존재**한다. 시각 확인은 안 했다 — 기록만 한다.
+- 라이브 캔버스 6개: `Canvas`(WS) / `ChatWorldCanvas`(WS) / `CrossPlatformRoomHud`(WS) / `RoomHudView`(**Overlay**) /
+  `NetworkHudCanvas`(Overlay, **DontDestroyOnLoad**) / `XR Interaction Simulator UI(Clone)`(Overlay, QuickStart).
+
+#### A-3 결정성
+
+Play를 나갔다 다시 들어와(2회차, `cameras=1`) A-1 재현:
+
+| | 승자 |
+|---|---|
+| 1회차 | `[QuickTest] EventSystem` (`StandaloneInputModule`, scene QuickStart) |
+| 2회차 | `[QuickTest] EventSystem` (`StandaloneInputModule`, scene QuickStart) |
+
+✅ **결정적.** (열거 **순서**는 두 회차에서 뒤바뀌었으나 `current`는 동일 — 승자가 열거 순서의 부산물이 아니라는
+반대 증거이기도 하다.) 원인도 구조적이다: `QuickTestStarter.EnsureClientInputInfrastructure()`가 **아바타 스폰보다
+먼저** EventSystem을 만들고, `EventSystem.current`는 **먼저 활성화된 쪽**이 쥔다.
+
+#### ⛔ A-3 결론 — 억제 코드는 무엇을 쿼리해야 하는가 (한 문장)
+
+> **`EventSystem`을 쿼리하지 마라 — `SuppressWorldClick`과 동형의 클레임 API를 만들고 채팅이 스스로 클레임하게
+> 하라.** `EventSystem.current` 하나만 봐도 uGUI 경로는 **충분히** 덮이지만(패자는 선택을 못 가진다), **데스크톱
+> 채팅은 IMGUI라 EventSystem에 아예 등록되지 않으므로**(포커스는 `GUI.GetNameOfFocusedControl()=="PsChatInput"`이
+> 쥔다 — `ChatContent.cs:161,179-180,193`) EventSystem 기반 억제는 **VR 입력창만 막고 데스크톱 채팅은 그대로
+> 뚫린다.**
+
+이게 브리프가 경계한 fail-open 그 자체다. 클레임 API로 가면 두 경로가 **같은 스위치**를 쓰므로 이 함정이 사라진다:
+`ChatContent`는 IMGUI 포커스로, `ChatWorldPanel`은 `isFocused`로 각각 클레임하면 된다.
+
+---
+
+### 12-B. 프로브 B — `F1` / `M` 런타임 공백
+
+#### B-1 열거 (주된 증거)
+
+로드된 `InputActionAsset` **5개** — 전부 `enabled=True`:
+`DefaultInputActions`(2맵) · `XR Interaction Controller Controls`(1) · `XR Interaction Hand Controls`(1) ·
+`XR Interaction Simulator Controls`(2) · `XRI Default Input Actions`(9).
+
+**활성 액션 152개**가 `<Keyboard>` 바인딩 **85건**, 서로 다른 키 **51개**를 물고 있다.
+
+⛔ **정적 grep이 놓친 출처 3개** — §4-D 원본이 틀린 이유:
+
+| 출처 | 무엇을 물고 있나 |
+|---|---|
+| `XR Interaction Controller Controls › Controller` | `1`~`8`(Primary/Secondary 버튼·2D축 클릭/터치), **`m`(Menu)**, `g`(Grip), `t`(Trigger), `i j k l`(Axis 2D), `e q`(Resting Hand Axis) |
+| `XR Interaction Hand Controls › Hands` | **`m`(Pinch)**, `n`(Poke), `o`(Open), `p`(Fist), `k`(Grab), `l`(Thumb) |
+| **`(no asset) › Debug Menu`** | `backspace` `enter` `leftAlt` `leftCtrl` `leftShift` `rightShift` `pageUp` `pageDown` `↑↓←→` — **에셋 없이 코드에서 생성된 액션맵이라 grep으로는 원리적으로 안 보인다** |
+
+앞의 둘은 XR Interaction Simulator의 **가상 장치 에뮬레이션**이다(= QuickStart 전용, `Y`와 같은 범주).
+
+#### 소환 키 실사격
+
+| 키 | 결과 |
+|---|---|
+| `<Keyboard>/f1` | ✅ **활성 액션 중 바인딩 0건 = FREE** |
+| `<Keyboard>/m` | ⛔ **점유** — `XR Interaction Controller Controls › Controller › Menu` **+** `XR Interaction Hand Controls › Hands › Pinch` |
+| `f1`~`f12` | ✅ **12개 전부 FREE** |
+
+#### B-2 주입 (보조 증거)
+
+| 주입 | 관측 |
+|---|---|
+| `F1` press+release | 활성 캔버스 6개·활성 Transform 174개 **before == after** → ✅ 아무것도 건드리지 않는다 |
+| `M` press+release | 화면 구조 변화 없음 — 단 **이건 무죄 증거가 아니다.** `M`은 "조작 중인 가상 컨트롤러"에 Menu/Pinch를 보내는 바인딩이라 장치를 조작 중이 아니면 화면이 안 변한다. **점유 판정의 근거는 B-1 열거이지 이 주입이 아니다** |
+
+⚠️ **한계 명시 (요구 사항):** `activeInputHandler = 2(Both)`이고 `QueueStateEvent`는 **신형 Input System에만**
+들어간다. 레거시 `UnityEngine.Input` 경로(= `DummyController`의 WASD, `ChairSitContent`의 `E` 폴백)는 **이 주입을
+보지 못한다.** 레거시 커버리지는 정적 grep(§4-B)이 담당하며 **이 프로브가 대체하지 않는다.**
+
+#### B-3 결론 — 데스크톱 소환 키 **최종 1개: `F1`**
+
+§4-D의 "1순위 `M`"은 **뒤집혔다.** `F1`은 (A)출하 룸·(B)QuickTest 두 맥락 모두에서 검증된 **유일한** 빈 키이고,
+텍스트 입력에 섞이지 않아 **I-7(핫키 억제) 미해결 상태에서도 안전**하다는 원래의 장점도 그대로다.
+백업은 `F2`~`F12`. **`M`을 마이크 음소거 단축키로 예약하는 안도 함께 폐기**해야 한다 — 비어 있지 않다.
+
+> 부수 발견(기록만): **`enter`가 `Debug Menu › Debug Validate`에 라이브로 물려 있다.** 채팅 전송이 `Enter`다(§4-B).
+> 실제 충돌 여부는 미확인 — Debug Menu는 `leftCtrl`+`backspace` 등으로 열어야 활성화되는 것으로 보이나 확인 안 했다.
+
+---
+
+### 12-C. 프로브 C — MetaVoiceChat 실재 + 뮤트 관측 (단일 클라)
+
+#### C-1 표면 덤프 (추측 API 0건 — 먼저 읽고 그 이름만 호출했다)
+
+- `Microphone.devices` = **`Microphone (VIVE Virtual Audio Device)`** (비어 있지 않다)
+- `AudioListener` 1개 @ `Desktop(Clone)/OnlyClient/Camera`, `volume=1`
+- 씬에 살아있는 보이스 컴포넌트 **4개, 전부 `enabled=True` / `activeInHierarchy=True`**, 전부 `Desktop(Clone)` 루트:
+  `XumMetaVc` · `MetaVoiceChat.Input.Mic.VcMicAudioInput` · `MetaVoiceChat.Output.AudioSource.VcAudioSourceOutput` ·
+  `XumMicrophonePermissionRequester`
+- 상속 체인: `XumMetaVc <- MetaVc`
+- **`MetaVc` 선언 public 멤버 (실측)** — 프로퍼티는 **0개**, 전부 **필드**다:
+
+| 종류 | 멤버 | 값(부팅 직후) |
+|---|---|---|
+| 필드 | `VcAudioInput audioInput` | `VcMicAudioInput` |
+| 필드 | `VcAudioOutput audioOutput` | `VcAudioSourceOutput` |
+| 필드 | `VcConfig config` | `MetaVoiceChat.VcConfig` |
+| 필드 | `bool isEchoEnabled` / `isSineOverrideEnabled` | False / False |
+| 필드 | `float maxCodecMilliseconds` | 50 |
+| **필드** | **`isDeafened`** | `MetaSerializableReactiveProperty<bool>(Value=False)` |
+| **필드** | **`isInputMuted`** | `(Value=False)` |
+| **필드** | **`isOutputMuted`** | `(Value=False)` |
+| **필드** | **`isSpeaking`** | **`(Value=True)`** |
+| 메서드 | `StartClient(INetProvider, bool, int)` / `ReceiveFrame(...)` / `StopClient()` | — |
+
+⚠️ **호출 형태는 `MetaVc.isInputMuted.Value`** — 필드로 래퍼를 얻고 래퍼의 `Value` 프로퍼티를 읽고 쓴다.
+래퍼 실제 타입: `MetaVoiceChat.Utils.MetaSerializableReactiveProperty<System.Boolean>`, `Value` **get=True / set=True**.
+
+#### C-2 관측 가능한 상태 변화
+
+| 단계 | `isInputMuted` | `isDeafened` | `isSpeaking` |
+|---|---|---|---|
+| before | False | False | True |
+| `Value = true` 쓰기 (예외 없음) | **True** | **True** | True |
+| 프레임 경과 후 | True | True | True |
+| 원복 `Value = false` (예외 없음) | **False** | **False** | — |
+
+호출한 멤버: `MetaVc.isInputMuted.Value`, `MetaVc.isDeafened.Value`. **예외 0건, 원복 완료.**
+⚠️ `isSpeaking`은 뮤트해도 True를 유지했다 — 입력단 VAD 신호이지 송출 여부가 아닌 것으로 보인다(단일 클라 관측 한계).
+
+#### C-3 정직 범위
+
+- **증명됨:** 컴포넌트 실재 + 아바타에 배선 + enabled, 마이크 장치 실재, **뮤트 상태가 관측 가능하게 바뀌고 원복된다.**
+- **증명 안 됨:** **가청 효과, 2클라 전파** — studio 2클라는 **MPPM 미도입으로 인프라 블록**.
+- **결론:** 마이크 토글은 **허구가 아니지만 절반만 증명된 컨트롤이다.** 그려도 되지만, 셸에 넣을 때
+  "무음이 됐다"를 사용자에게 **단정하는 문구는 쓰지 말 것**(상태 반영만 표시).
+
+---
+
+### 12-D. ⚠️미확인 5건 갱신
+
+| # | 항목 | 상태 | 사유 |
+|---|---|---|---|
+| 1 | **EventSystem 승자** | ✅ **닫힘** | 승자 = `[QuickTest] EventSystem`(StandaloneInputModule), Play 2회 재현 동일 = 결정적. 패자는 `currentInputModule=NULL`이라 선택 취득 불가(§12-A) |
+| 2 | **음성 라이브 동작** | 🟡 **부분 닫힘** | 컴포넌트·장치 실재 + 뮤트 상태 변화·원복까지 증명. **가청/2클라 전파는 잔존** — MPPM 미도입 인프라 블록(§12-C) |
+| 3 | **`M` 키 공백** *(신규 — 이번 판이 만든 항목)* | ✅ **닫힘(부정으로)** | 비어 있지 않다. 정적 grep이 코드 생성 액션맵과 시뮬레이터 장치 에뮬레이션을 못 봤다(§12-B) |
+| 4 | **HMD XR 렌더스케일 / foveation** | ⛔ **잔존** | **에디터 Play로는 답이 안 나온다** — XR 런타임이 안 붙어 `XRSettings.*`가 0을 준다. **실기기 몫**이고, 그래픽 설정 패널에 착수할 때 1회 실측한다 |
+| 5 | **닉네임 편집 경로** | ⛔ **잔존** | 3분류(설정/기능/나가기) 어디에도 안 걸린다. **"참가자" 섹션(I-2)이 생길 때** 함께 판정한다 |
+| 6 | **runtime 플레이어의 `RoomLeaveHandler`** | ⛔ **잔존 — 단 Play로 닫을 항목이 아니다** | `c:\J_0\XumFlow` 보존본을 **소스로 읽어** 닫는다(읽기 전용). 이번 판에 읽어도 되고 **나가기 배선 직전**에 읽어도 된다 |
+
+### 12-E. 이번 판에서 "고치고 싶어졌지만 안 고친 것"
+
+1. **핫키 억제(I-7)** — 정지 규칙이 명시적으로 금지. 다음 판에서 게이트 **U13**과 함께.
+2. **`ChatWorldCanvas`가 데스크톱에서도 켜진다** — 채팅 표면 2개 동시 활성(§12-A). 신규 관측, 미조치.
+3. **`enter` ↔ Debug Menu 바인딩 겹침**(§12-B 부수 발견) — 실제 충돌 미확인, 미조치.
 
 ---
 

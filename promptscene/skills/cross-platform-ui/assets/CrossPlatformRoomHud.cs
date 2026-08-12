@@ -349,10 +349,11 @@ public class CrossPlatformRoomHud : MonoBehaviour
     private void RefreshAll() { foreach (var e in _entries) RefreshCell(e.Id); }
 
     /// <summary>
-    /// State is told by FILL, not by text: ON = <see cref="HudTheme.Accent"/> disc; OFF = <see cref="HudTheme.Film"/>.
-    /// The glyph stays <see cref="HudTheme.GlyphDark"/> in BOTH states (v6) — which is exactly why Film has to be
-    /// opaque enough; see the arithmetic in HudTheme's header. There is no `": ON"` string anywhere, and the size
-    /// never changes between states.
+    /// State is told by the RIM, not by text and not by the fill (v6.1): ON = <see cref="HudTheme.Accent"/> ring;
+    /// OFF = <see cref="HudTheme.RimTop"/> ring. The disc stays <see cref="HudTheme.Film"/> glass in both states so
+    /// the accent never floods the icon itself. The glyph stays <see cref="HudTheme.GlyphDark"/> in BOTH states —
+    /// which is exactly why Film has to be opaque enough; see the arithmetic in HudTheme's header. There is no
+    /// `": ON"` string anywhere, and the size never changes between states.
     /// </summary>
     private void RefreshCell(string id)
     {
@@ -361,14 +362,21 @@ public class CrossPlatformRoomHud : MonoBehaviour
         bool on = entry.Content != null && entry.Content.IsEnabled;   // an action is never "on"
         bool hover = _hovered.Contains(id);
 
+        // v6.1: 상태를 말하는 자리를 **채움 → 테두리**로 옮겼다. 원판이 통째로 파랗게 물들면 아이콘이 아니라
+        // 색면이 먼저 읽히고, 유리판 위에 잉크를 부은 것처럼 보인다. 이제 원판은 언제나 같은 유리이고
+        // 링만 액센트로 빛난다. (HudTheme.Roles.AccentBearing 이 Disc·Ring 둘 다 액센트 담지자로
+        // 이미 규정해 두었으므로 역할 규약 위반이 아니다.)
         if (_discs.TryGetValue(id, out var disc) && disc != null)
-            disc.color = on ? HudTheme.Accent : (hover ? HudTheme.FilmHover : HudTheme.Film);
+            disc.color = hover ? HudTheme.FilmHover : HudTheme.Film;   // 원판은 상태를 말하지 않는다
 
         if (_rings.TryGetValue(id, out var ring) && ring != null)
-            ring.color = HudTheme.RimTop;      // 링은 상태를 말하지 않는다 — 액센트는 채움 한 곳뿐
+            ring.color = on ? HudTheme.Accent : HudTheme.RimTop;       // 액센트는 테두리 한 곳뿐
 
         if (_glyphs.TryGetValue(id, out var glyph) && glyph != null)
+        {
             glyph.color = HudTheme.GlyphDark;
+            EnsureGlyphHalo(glyph);
+        }
 
         if (_labels.TryGetValue(id, out var label) && label != null)
         {
@@ -376,6 +384,34 @@ public class CrossPlatformRoomHud : MonoBehaviour
             label.fontSize  = HudTheme.FontFoot;
             label.fontStyle = FontStyle.Normal;      // never faux-bold: emphasis is weight (600) or colour
         }
+    }
+
+    /// <summary>
+    /// 밝은 헤일로 — the glyph keeps its DARK ink (so the opaque Accent disc still reads at 10.26:1 when ON) and
+    /// gains a LIGHT outline so its shape survives when the OFF disc is sheer enough to let a dark room through.
+    ///
+    /// ⛔ Do NOT use <see cref="HudTheme.TextOutline"/> here — it is #0A0D12, the SAME ink as
+    /// <see cref="HudTheme.GlyphDark"/>, so a dark-on-dark outline reinforces nothing (self-contrast 1.00:1) and
+    /// merely thickens the shape that is already vanishing. Measured 2026-08-12 at Film α.30:
+    ///     dark glyph + TextOutline → self 1.00:1, over a dark room 2.28:1   ⛔
+    ///     dark glyph + TextHi halo → self 17.67:1, halo vs dark disc 7.74:1 ✅
+    ///     light glyph + TextOutline→ self 17.67:1 BUT 1.72:1 against the ON Accent disc ⛔
+    /// Over a BRIGHT room the halo disappears into the disc (1.10:1) and carries nothing — that is fine, because
+    /// there the dark glyph itself is already at 19.46:1. Each treatment covers the end the other cannot.
+    ///
+    /// Thickness is <see cref="HudTheme.OutlineW"/> (2 px) on a <see cref="HudTheme.GlyphPx"/> (48 px) glyph = 1/24.
+    /// The outline v6 threw away was the same 2 px on a 16 px Hangul LABEL = 1/8, where the strokes ate each other.
+    /// A third of that relative weight on a single icon glyph is a different proposition — but it is still a
+    /// **taste** call, so look at the U8 captures before believing this arithmetic (twice now, the eye has caught
+    /// what the contrast gate passed).
+    /// </summary>
+    private static void EnsureGlyphHalo(Text glyph)
+    {
+        var halo = glyph.GetComponent<Outline>();
+        if (halo == null) halo = glyph.gameObject.AddComponent<Outline>();
+        halo.effectColor     = HudTheme.TextHi;
+        halo.effectDistance  = new Vector2(HudTheme.OutlineW, HudTheme.OutlineW);
+        halo.useGraphicAlpha = false;      // the halo must not inherit the glyph's alpha or it fades with it
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────
