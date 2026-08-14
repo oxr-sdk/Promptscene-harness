@@ -17,9 +17,11 @@ using PromptScene.Core.UI;
 /// 부수 효과로 글자의 캡 각크기도 상수다(<see cref="HudTheme.BadgeCapArcmin"/>) — 거리별 가독성 판정이 필요 없다.
 ///
 /// ── 유리 스택 (F0) ────────────────────────────────────────────────────────────────────────────
-/// 배지는 패널 밖(환경 위)에 뜨므로 **자기 Scrim을 들고 다녀야 한다.** 흰 Film을 Scrim 없이 환경에
+/// 배지는 패널 밖(환경 위)에 뜨므로 **자기 Scrim을 들고 다녀야 한다.** 잉크를 보장 없이 환경 위 Film에
 /// 직접 얹으면 밝은 배경에서 글자가 사라지고, U7이 그걸 FAIL로 잡는다. 그래서 원판은 2겹 체인이다:
-///   __scrim(Scrim) > __disc(Film) > __keycap(TextHi)   +  __ring(RimLit, 형제·장식)
+///   __scrim(Scrim) > __disc(Film) > __keycap(GlyphDark + TextHi 헤일로)   +  __ring(RimTop, 형제·장식)
+/// 배지는 보장을 **둘 다** 든다(Scrim + 헤일로). 패널 HUD가 유리 방향에서 Scrim을 α0으로 내렸어도
+/// 배지는 환경 위에 홀로 뜨는 물건이라 Scrim을 유지한다 — 같은 규칙의 다른 답이지, 예외가 아니다.
 /// 조상 체인이 곧 대비 스택이 되도록 **중첩**으로 쌓는다(형제로 깔면 게이트가 스택을 볼 수 없다).
 ///
 /// ── 표시 규율 ─────────────────────────────────────────────────────────────────────────────────
@@ -97,10 +99,12 @@ public class KeyBadge : MonoBehaviour
                            HudSprites.RingGraded(HudTheme.CircleD, HudTheme.RimW, HudTheme.RimBot.a / HudTheme.RimTop.a));
         Stretch((RectTransform)ring.transform);
 
-        // 키캡 잉크는 아이콘 글리프와 같다: **어두운 색**. 그래서 Film이 불투명해야 한다(HudTheme 헤더의 산술).
+        // 키캡 잉크는 아이콘 글리프와 같다: **어두운 색** + 밝은 헤일로. 잉크를 Film 불투명도에 기대게 두면
+        // 유리 방향(Film α↓)에서 그대로 무너진다 — 보장을 판이 아니라 잉크가 들게 한다(Halo 주석의 산술).
         _keycapText = MkText(RootName + HudTheme.Roles.Keycap, disc.transform, HudTheme.KeycapPx, HudTheme.GlyphDark, TextAnchor.MiddleCenter);
         _keycapText.text = keycap;
         Stretch((RectTransform)_keycapText.transform);
+        Halo(_keycapText);
 
         // ── 라벨 알약: Scrim 위의 TextHi. 근거리에서만 켠다 ──
         var pill = MkImage(RootName + "__pill", row.transform, HudTheme.Scrim, HudSprites.RoundedRect(HudTheme.Radius));
@@ -191,15 +195,28 @@ public class KeyBadge : MonoBehaviour
     }
 
     /// <summary>
-    /// 불투명 아웃라인. 반투명 판 위의 글자는 배경이 무엇이냐에 따라 대비가 흔들리지만, 글자 둘레가 항상
+    /// 밝은 헤일로. 반투명 판 위의 글자는 배경이 무엇이냐에 따라 대비가 흔들리지만, 글자 둘레가 항상
     /// 같은 색이면 그 둘레를 배경 삼아 읽힌다. U7이 이 조건(불투명 + 두께)을 따로 단정한다.
+    ///
+    /// ⛔ 색은 <see cref="HudTheme.TextOutline"/>이 아니라 <see cref="HudTheme.TextHi"/>다 — 이 함수가 감싸는
+    /// 잉크(<see cref="HudTheme.GlyphDark"/>)와 TextOutline은 **같은 #0A0D12**라 자기대비 1.00:1, 보강이 0이다.
+    /// (CrossPlatformRoomHud.EnsureGlyphHalo와 같은 판정. 두 곳이 같은 기계를 쓴다.)
+    ///
+    /// 왜 지금 필요한가 — Film α를 .60에서 .30으로 낮추면(유리 방향) 키캡이 게이트 아래로 떨어진다.
+    /// 실측(Scrim .78 위 Film, 최악 환경):
+    ///     Film .60 → 어두운 키캡 7.17:1 PASS  (헤일로 없이 버텼다)
+    ///     Film .30 → 어두운 키캡 **2.55:1 FAIL** (검은 환경) / 5.45:1 (흰 환경)
+    ///     Film .30 + TextHi 헤일로 → 자기 헤일로 17.67:1 PASS, 헤일로 대 원판 6.93:1(보인다)
+    /// 즉 아이콘 글리프가 밟은 것과 **같은 벼랑**이고, 같은 해법을 쓴다. 2px / KeycapPx 48 = 1/24 —
+    /// v6가 버린 아웃라인(2px / 16px 한글 = 1/8, 획이 서로 먹었다)과는 상대 두께가 다른 사안이지만,
+    /// 그래도 **미감 판정은 사람 몫**이다: U8 캡처를 보고 믿어라.
     /// </summary>
-    private static void Outline(Text t)
+    private static void Halo(Text t)
     {
         var o = t.gameObject.GetComponent<UnityEngine.UI.Outline>() ?? t.gameObject.AddComponent<UnityEngine.UI.Outline>();
-        o.effectColor = HudTheme.TextOutline;
+        o.effectColor = HudTheme.TextHi;
         o.effectDistance = new Vector2(HudTheme.OutlineW, HudTheme.OutlineW);
-        o.useGraphicAlpha = false;
+        o.useGraphicAlpha = false;      // 헤일로가 글자 알파를 물려받으면 같이 사라진다
     }
 
     private static void Stretch(RectTransform rt)

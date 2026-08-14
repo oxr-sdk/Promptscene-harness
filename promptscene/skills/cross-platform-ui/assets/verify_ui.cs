@@ -14,7 +14,11 @@
 //            the design and the real placement distance, ≤2 ramp sizes per panel, no faux-bold) and
 //            colour/spacing/**CONTRAST ARITHMETIC** — U7 now composites each text's real ancestor stack over the
 //            WORST environment (white AND black) and asserts ≥ HudTheme.Contrast.MinText. This is F0 as code:
-//            a white Film exposed to the environment with no Scrim under it is a structural FAIL.
+//            ink placed on an environment-exposed Film with NEITHER a Scrim behind it NOR an opaque halo around it
+//            is a structural FAIL. (v6.1, 2026-08-12: the rule used to judge the FILM — "no Scrim → FAIL" — but the
+//            glass direction removed the Scrim on purpose, and the risk it guarded is now carried by the halo.
+//            The subject moved from the plate to the INK; the halo conditions are the same assertion the halo
+//            clause makes, not a second, laxer one.)
 //   U8       captures over a BRIGHT and a DARK environment. EVIDENCE ONLY — deliberately not part of PASS/FAIL.
 //   U9       composition: every node classifies into the SIX components; Card usage = 0; container nesting = 0.
 //   U10      angular-size runaway: every world text either owns an angular-fix component (KeyBadge) or is on the
@@ -64,6 +68,21 @@ public class PS_VerifyUI {
     static string TmpDir => Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Temp"));
     static string OrigF  => Path.Combine(TmpDir, "ps_ui_orig.txt");
     static string OutF   => Path.Combine(TmpDir, "ps_ui_result.txt");
+
+    /// <summary>
+    /// 복원 스냅샷의 **정본**. ⛔ `<project>/Temp` 에만 두면 안 된다 — Unity가 도메인 리로드·플레이 전환·에셋
+    /// 재임포트 때 그 폴더를 비울 수 있고, 그러면 Teardown이 복원할 근거를 잃고 **조용히 아무것도 안 한다**
+    /// (QuickTestStarter가 테스트 값 그대로 남아, 다음 사람이 Play를 누르면 엉뚱한 룸이 뜬다).
+    /// 2026-08-13 실측: 아이콘 폰트를 재임포트한 실행에서 Setup↔Teardown 사이에 파일이 사라졌다
+    /// (같은 절차의 앞선 두 실행은 멀쩡했다 = 재현이 불규칙한 조용한 실패).
+    /// EditorPrefs는 리로드·플레이 전환을 견딘다. 파일은 사람이 읽을 수 있는 **사본**으로만 남긴다.
+    /// </summary>
+    const string SnapKey = "PS_VerifyUI.origSnapshot";
+    static bool   HasSnapshot()  => EditorPrefs.HasKey(SnapKey) || File.Exists(OrigF);
+    static string LoadSnapshot() => EditorPrefs.HasKey(SnapKey) ? EditorPrefs.GetString(SnapKey)
+                                  : (File.Exists(OrigF) ? File.ReadAllText(OrigF) : null);
+    static void SaveSnapshot(string s){ EditorPrefs.SetString(SnapKey, s); try{ Directory.CreateDirectory(TmpDir); File.WriteAllText(OrigF, s); }catch{} }
+    static void ClearSnapshot(){ EditorPrefs.DeleteKey(SnapKey); try{ File.Delete(OrigF); }catch{} }
 
     static Type FindType(string full){
         foreach(var a in AppDomain.CurrentDomain.GetAssemblies()){
@@ -277,11 +296,11 @@ public class PS_VerifyUI {
         Directory.CreateDirectory(TmpDir);
         // 스냅샷을 덮어쓰지 않는다. 파일이 이미 있으면 앞선 Setup이 Teardown 없이 끝났다는 뜻이고,
         // 지금 덮어쓰면 사람이 넣어둔 원본이 영구히 사라진다(그러면 Teardown은 제 값을 원본이라 믿는다).
-        if(File.Exists(OrigF))
-            Debug.LogWarning("[PS_VerifyUI] Setup: 기존 스냅샷 유지(덮어쓰기 금지) - 앞선 실행이 Teardown 없이 끝났다.  |  기존: "+File.ReadAllText(OrigF).Replace(((char)10).ToString(), " / ")
+        if(HasSnapshot())
+            Debug.LogWarning("[PS_VerifyUI] Setup: 기존 스냅샷 유지(덮어쓰기 금지) - 앞선 실행이 Teardown 없이 끝났다.  |  기존: "+(LoadSnapshot()??"").Replace(((char)10).ToString(), " / ")
                              +"  |  현재: "+orig.Replace(((char)10).ToString(), " / "));
         else
-            File.WriteAllText(OrigF, orig);
+            SaveSnapshot(orig);
         so.FindProperty("startAsServer").boolValue=true;
         so.FindProperty("hostMode").boolValue=true;
         so.FindProperty("roomSceneKey").stringValue=roomKey;
@@ -433,12 +452,16 @@ public class PS_VerifyUI {
                 string line;
                 if(ol!=null){
                     // 아웃라인 절: 글자 둘레가 항상 같은 색이면 그 둘레를 배경 삼아 읽힌다.
-                    // 완화가 아니라 다른 기계이므로 **조건을 단정한다**: 불투명 + 두께 >= OutlineW.
+                    // 완화가 아니라 다른 기계이므로 **조건을 단정한다**: 불투명 + 두께 >= 그 역할의 하한.
+                    // ⭐ 두께 하한은 **역할별**이다(Roles.SizeExempt가 크기에서 하는 것과 같은 형태):
+                    //   16px 라벨에 48px 글리프와 같은 2px를 요구하면 상대 두께가 1/8이 되고, 그건 v6가
+                    //   눈으로 보고 버린 바로 그 지점이다. 역할을 나눠야 같은 보장 기계를 두 크기에 쓸 수 있다.
+                    int wantW = t.name.EndsWith(HudTheme.Roles.Label) ? HudTheme.LabelHaloW : HudTheme.OutlineW;
                     bool opaque = ol.effectColor.a >= 0.999f;
-                    bool thick  = Mathf.Min(Mathf.Abs(ol.effectDistance.x), Mathf.Abs(ol.effectDistance.y)) >= HudTheme.OutlineW - 0.01f;
+                    bool thick  = Mathf.Min(Mathf.Abs(ol.effectDistance.x), Mathf.Abs(ol.effectDistance.y)) >= wantW - 0.01f;
                     float r = HudTheme.Contrast.OutlinedRatio(t.color, ol.effectColor);
                     if(!opaque) badOutline.Add(t.name+" outline alpha="+ol.effectColor.a.ToString("F2")+" (불투명이어야 함)");
-                    if(!thick)  badOutline.Add(t.name+" outline w="+ol.effectDistance.x+" (>= "+HudTheme.OutlineW+" 이어야 함)");
+                    if(!thick)  badOutline.Add(t.name+" outline w="+ol.effectDistance.x+" (>= "+wantW+" 이어야 함)");
                     line=t.name+" on OUTLINE("+ColorToHex(ol.effectColor)+")="+r.ToString("F2")+"  [배경스택 ["+string.Join(">",names)+"]="+worst.ToString("F2")+"]";
                     if(r < HudTheme.Contrast.MinText || !opaque || !thick) lowContrast.Add(line);
                     worst = r;
@@ -449,8 +472,17 @@ public class PS_VerifyUI {
                 contrastRows.Add(line);
             }
 
-            // ── ⭐ 구조 규칙: 흰 Film이 Scrim 없이 환경에 직접 노출되면 FAIL ──
-            var exposedFilm=new List<string>();
+            // ── ⭐ 구조 규칙 (v6.1에서 재정의) — 노출된 Film이 아니라 **보장 없는 잉크**가 결함이다 ──
+            // v6의 규칙은 "흰 Film은 반드시 Scrim 위"였다. 유리 방향(Scrim α0, 2026-08-12 오너 지시)에서는 그 규칙이
+            // 디자인 전체를 구조 FAIL로 만드는데, 정작 막으려던 위험 — 환경이 비쳐 잉크가 사라지는 것 — 은 이미
+            // **불투명 헤일로**가 다른 기계로 막는다(halo 절과 동일 원리: 잉크 둘레가 항상 같은 색이면 배경 스택이
+            // 무엇이든 읽힌다). 그래서 "Scrim이 뒤에 있어야 한다" → **"보장 수단이 하나는 있어야 한다"** 로 옮긴다:
+            //     Scrim도 헤일로도 없이 Film 위에 놓인 텍스트가 하나라도 있으면 FAIL.
+            // 완화가 아니다 — 판정 대상이 **판(Film)에서 잉크(Text)로** 바뀌었을 뿐이고, 헤일로 조건(불투명 + 두께)은
+            // 아래 halo 절이 쓰는 것과 **같은 단정**을 재사용한다. 잉크가 아예 없는 Film은 가독성 위험이 없으므로
+            // 통과시키되 개수를 보고한다(조용히 사라지지 않게).
+            // ⚠ "덮인다"는 계층이 아니라 **기하**로 본다 — 원판(__disc)과 글리프(__glyph)는 형제라서 계층으로는 서로 안 보인다.
+            var unguardedInk=new List<string>(); var exposedFilm=new List<string>(); int exposedInkless=0;
             foreach(var img in hud.GetComponentsInChildren<Image>(true)){
                 if(!img.gameObject.activeInHierarchy) continue;
                 bool isFilm = ColorNear(img.color,HudTheme.Film)||ColorNear(img.color,HudTheme.FilmHover);
@@ -460,7 +492,20 @@ public class PS_VerifyUI {
                     var pi=p.GetComponent<Image>();
                     if(pi!=null && ColorNear(pi.color,HudTheme.Scrim) && Covers(pi.rectTransform,img.rectTransform)){ scrimBehind=true; break; }
                 }
-                if(!scrimBehind) exposedFilm.Add(img.name);
+                if(scrimBehind) continue;
+                exposedFilm.Add(img.name);
+                var inkOver=texts.Where(t=>t.gameObject.activeInHierarchy && Covers(img.rectTransform,t.rectTransform)).ToList();
+                if(inkOver.Count==0){ exposedInkless++; continue; }
+                foreach(var t in inkOver){
+                    var ol=t.GetComponent<UnityEngine.UI.Outline>();
+                    bool opaqueHalo = ol!=null && ol.effectColor.a>=0.999f;
+                    int wantW2 = t.name.EndsWith(HudTheme.Roles.Label) ? HudTheme.LabelHaloW : HudTheme.OutlineW;  // 위 절과 같은 역할별 하한
+                    bool thickHalo  = ol!=null && Mathf.Min(Mathf.Abs(ol.effectDistance.x),Mathf.Abs(ol.effectDistance.y))>=wantW2-0.01f;
+                    if(opaqueHalo && thickHalo) continue;
+                    unguardedInk.Add(img.name+" ← "+t.name+(ol==null ? " (헤일로 없음)"
+                                     : !opaqueHalo ? " (헤일로 α="+ol.effectColor.a.ToString("F2")+", 불투명 아님)"
+                                                   : " (헤일로 두께 "+ol.effectDistance.x+" < "+wantW2+")"));
+                }
             }
 
             // TAP TARGETS: judged at the REAL placement distance (the conservative one)
@@ -483,10 +528,12 @@ public class PS_VerifyUI {
             sb.AppendLine("   ⭐ CONTRAST (worst of white/black env, min "+HudTheme.Contrast.MinText+":1) — violations="+lowContrast.Count
                           +(lowContrast.Count>0?" ["+string.Join(" | ",lowContrast)+"]":""));
             foreach(var c in contrastRows) sb.AppendLine("        "+c);
-            sb.AppendLine("   아웃라인 조건(불투명 + 두께>="+HudTheme.OutlineW+") 위반="+badOutline.Count
+            sb.AppendLine("   아웃라인 조건(불투명 + 두께>=역할별[글리프 "+HudTheme.OutlineW+" / 라벨 "+HudTheme.LabelHaloW+"]) 위반="+badOutline.Count
                           +(badOutline.Count>0?" ["+string.Join(",",badOutline)+"]":""));
-            sb.AppendLine("   ⭐ Film exposed with NO Scrim behind it (structural)="+exposedFilm.Count
+            sb.AppendLine("   ⭐ 노출된 Film(Scrim 없음)="+exposedFilm.Count+" (그 중 잉크 없음="+exposedInkless+" → 위험 없음)"
                           +(exposedFilm.Count>0?" ["+string.Join(",",exposedFilm)+"]":" — every Film sits on a Scrim"));
+            sb.AppendLine("   ⭐ 보장 없는 잉크(Scrim도 헤일로도 없이 Film 위, structural)="+unguardedInk.Count
+                          +(unguardedInk.Count>0?" ["+string.Join(" | ",unguardedInk)+"]":" — 노출된 Film 위 잉크는 전부 불투명 헤일로로 보장됨"));
             sb.AppendLine("   tap targets >= "+HudTheme.Legibility.MinTargetDeg+"deg @"+HudTheme.Legibility.PlacementDistanceM+"m: violations="+smallTargets.Count
                           +(smallTargets.Count>0?" ["+string.Join(",",smallTargets)+"]":"")
                           +"  (circle "+HudTheme.CircleD+"px="+HudTheme.Legibility.Deg(HudTheme.CircleD,HudTheme.Legibility.PlacementDistanceM).ToString("F2")+"deg)");
@@ -496,7 +543,7 @@ public class PS_VerifyUI {
             sb.AppendLine("   accent POSITIVE case: "+accentPositive);
 
             u7 = badSpace.Count==0 && literals.Count==0 && accentViolations.Count==0 && lowContrast.Count==0
-                 && badOutline.Count==0 && exposedFilm.Count==0 && smallTargets.Count==0;
+                 && badOutline.Count==0 && unguardedInk.Count==0 && smallTargets.Count==0;
 
             // ══════════ U9 — COMPOSITION (컴포넌트 6종, Card 0, 중첩 0) ═══════════════════════
             u9 = Composition(hud, sb);
@@ -564,8 +611,11 @@ public class PS_VerifyUI {
         var lit=hud.GetComponentsInChildren<Graphic>(true)
                    .Where(g=>g.gameObject.activeInHierarchy && RgbNear(g.color,HudTheme.Accent) && g.color.a>0.01f)
                    .Select(g=>g.name).OrderBy(n=>n).ToList();
-        // ON이면 그 버튼의 disc + ring 두 곳에만 액센트가 떠야 한다(글리프는 OnGlyph로 반전된다)
-        var want=new[]{ probeRow.name+HudTheme.Roles.Disc }.OrderBy(n=>n).ToList();
+        // v6.1(2026-08-11 오너 지시): 상태를 말하는 자리가 **채움 → 테두리**로 옮겨졌다. ON이면 그 버튼의
+        // **ring 한 곳에만** 액센트가 뜨고, 원판은 어느 상태에서도 유리(Film)로 남는다 — 원판이 통째로
+        // 물들면 아이콘이 아니라 색면이 먼저 읽히기 때문이다(CrossPlatformRoomHud.RefreshCell 주석).
+        // 그래서 이 기대값은 disc가 아니라 ring이고, SequenceEqual이라 "disc는 물들지 않았다"까지 함께 단정한다.
+        var want=new[]{ probeRow.name+HudTheme.Roles.Ring }.OrderBy(n=>n).ToList();
         bool exact = lit.SequenceEqual(want);
         string id=probeRow.name.Substring("Btn_".Length);
         object feat=null; if(reg!=null){ var m=reg.GetType().GetMethod("GetById"); feat=m?.Invoke(reg,new object[]{id}); }
@@ -573,9 +623,9 @@ public class PS_VerifyUI {
         // 글리프가 어두운색으로 반전됐는지도 같이 본다 — 채움만 바뀌고 글리프가 흰색이면 대비가 죽는다
         // v6: 글리프 잉크는 OFF/ON 양쪽 모두 어둡다. 상태는 **채움**만 말한다 — 그것도 단정한다.
         var glyph=hud.GetComponentsInChildren<Text>(true).FirstOrDefault(t=>t.name==probeRow.name+HudTheme.Roles.Glyph);
-        bool glyphStable = glyph==null || ColorNear(glyph.color, HudTheme.GlyphDark);
+        bool glyphStable = glyph==null || ColorNear(glyph.color, HudTheme.GlyphInk);
         string res="drove "+probeRow.name+" ON → accent=["+string.Join(",",lit)+"] expect ["+string.Join(",",want)+"]"
-                   +" featureIsEnabled="+on+" glyph stays GlyphDark="+glyphStable+" → "+((exact&&on&&glyphStable)?"PROVEN":"VIOLATION");
+                   +" featureIsEnabled="+on+" glyph stays GlyphInk="+glyphStable+" → "+((exact&&on&&glyphStable)?"PROVEN":"VIOLATION");
         if(!(exact&&on&&glyphStable)) violations.Add("positive case: "+res);
         probeBtn.onClick.Invoke();      // restore the resting state
         return res;
@@ -852,13 +902,29 @@ public class PS_VerifyUI {
                 stash.Add(new KeyValuePair<GameObject,int>(tr.gameObject, tr.gameObject.layer));
                 tr.gameObject.layer=spare;
             }
+            // ⛔ 소환형 HUD는 **캔버스가 꺼진 채로 시작한다**(HudSummon.startHidden — F1을 눌러야 뜬다).
+            // 그 상태로 찍으면 배경색만 남은 **백지 PNG**가 나오고, U8은 판정에 안 들어가므로 아무도 실패를
+            // 알려주지 않는다 — 증거가 조용히 사라지는 정확한 실패 모드다(2026-08-12 실측: 순검정/순백 2장).
+            // 그래서 찍는 동안만 소환하고 원상복구한다. GameObject가 아니라 Canvas를 켠다(HudSummon과 같은 축).
+            var canvasStash=new List<KeyValuePair<Canvas,bool>>();
+            foreach(var cv in hud.GetComponentsInChildren<Canvas>(true)){
+                canvasStash.Add(new KeyValuePair<Canvas,bool>(cv, cv.enabled));
+                cv.enabled=true;
+            }
+            Canvas.ForceUpdateCanvases();
             var camGo=new GameObject("__ps_ui_capture_cam");             // untagged: must NOT become Camera.main
             var cam=camGo.AddComponent<Camera>();
             cam.cullingMask=1<<spare;
             cam.transform.position=panel.position - hud.transform.forward*d;
             cam.transform.rotation=Quaternion.LookRotation(hud.transform.forward, hud.transform.up);
             cam.orthographic=true;
-            cam.orthographicSize=(hPx/HudTheme.Legibility.PxPerMeter)*0.5f;
+            // ⛔ 프레이밍을 px/PxPerMeter로 유도하면 **HUD가 설계 스케일에 있다고 가정**하는 것인데, HudPlacement가
+            // 런타임에 거리 보정으로 스케일을 바꾼다(preserveApparentSize). 그래서 같은 씬을 두 번 찍어도 그림 속
+            // 원 크기가 달라졌다(2026-08-12 실측: 한 번은 원이 240px, 다음 실행은 90px = 0.375배). 판정에 안 들어가는
+            // 증거라 아무도 실패를 알려주지 않는다 — 캡처는 **실제 월드 크기**로 프레이밍한다.
+            float worldH=0f;
+            if(rt!=null){ var wc=new Vector3[4]; rt.GetWorldCorners(wc); worldH=Vector3.Distance(wc[0],wc[1]); }
+            cam.orthographicSize=(worldH>0.0001f ? worldH : hPx/HudTheme.Legibility.PxPerMeter)*0.5f;
             cam.nearClipPlane=0.01f; cam.farClipPlane=d*2f;
             cam.clearFlags=CameraClearFlags.SolidColor;
             cam.backgroundColor=env;                                     // ← 최악 환경을 그림으로도 남긴다
@@ -867,7 +933,10 @@ public class PS_VerifyUI {
             Shoot(cam, texW, texH, path);
             UnityEngine.Object.DestroyImmediate(camGo);
             foreach(var kv in stash) if(kv.Key!=null) kv.Key.layer=kv.Value;
-            return path+" ("+texW+"x"+texH+", ortho "+d.ToString("F2")+"m head-on, env="+(env==Color.white?"WHITE 최악":"BLACK")+")";
+            foreach(var kv in canvasStash) if(kv.Key!=null) kv.Key.enabled=kv.Value;   // 소환 상태를 원래대로
+            int summoned=canvasStash.Count(kv=>!kv.Value);
+            return path+" ("+texW+"x"+texH+", ortho "+d.ToString("F2")+"m head-on, env="+(env==Color.white?"WHITE 최악":"BLACK")+")"
+                   +(summoned>0?"  [숨겨진 캔버스 "+summoned+"개를 촬영 동안만 소환]":"");
         } catch(Exception e){ return "capture failed (not a FAIL — evidence only): "+e.Message; }
     }
 
@@ -927,8 +996,21 @@ public class PS_VerifyUI {
     // ---- 5) Teardown ----
     public static void Teardown(){
         var starter=FindStarter();
-        if(starter==null || !File.Exists(OrigF)){ Debug.Log("[PS_VerifyUI] Teardown: nothing to restore"); return; }
-        var map=File.ReadAllLines(OrigF).Select(l=>l.Split(new[]{'='},2)).Where(a=>a.Length==2).ToDictionary(a=>a[0],a=>a[1]);
+        var snap=LoadSnapshot();
+        if(starter==null || string.IsNullOrEmpty(snap)){
+            // ⛔ 조용히 끝내지 않는다. "복원할 게 없다"와 "복원에 실패했다"는 겉보기가 같고, 후자면
+            // QuickTestStarter가 **테스트 값 그대로** 남아 다음 사람이 Play를 눌렀을 때 엉뚱한 룸이 뜬다.
+            string cur="(starter 없음)";
+            if(starter!=null){ var s2=new SerializedObject(starter);
+                cur="startAsServer="+s2.FindProperty("startAsServer").boolValue
+                   +" hostMode="+s2.FindProperty("hostMode").boolValue
+                   +" roomSceneKey='"+s2.FindProperty("roomSceneKey").stringValue+"'"; }
+            Debug.LogWarning("[PS_VerifyUI] Teardown: 복원할 스냅샷이 없다 → **아무것도 되돌리지 않았다.** 현재 QuickTestStarter = "+cur
+                             +"  |  Setup을 안 돌렸으면 정상이지만, 돌렸는데 이 메시지가 보이면 스냅샷이 사라진 것이다"
+                             +"(Temp 폴더는 리로드/재임포트로 비워질 수 있다). 그때는 QuickStart.unity 의 디스크 값으로 손수 되돌릴 것.");
+            return;
+        }
+        var map=snap.Split('\n').Select(l=>l.Trim().Split(new[]{'='},2)).Where(a=>a.Length==2).ToDictionary(a=>a[0],a=>a[1]);
         var so=new SerializedObject(starter);
         if(map.ContainsKey("startAsServer")) so.FindProperty("startAsServer").boolValue=map["startAsServer"]=="True";
         if(map.ContainsKey("hostMode"))      so.FindProperty("hostMode").boolValue=map["hostMode"]=="True";
@@ -936,7 +1018,7 @@ public class PS_VerifyUI {
         so.ApplyModifiedPropertiesWithoutUndo();
         // 복원했으면 스냅샷을 **지운다.** 남겨두면 다음 Setup이 "앞선 실행이 안 끝났다"로 오판하고,
         // 안 지우면 위의 덮어쓰기 금지가 영원히 걸린 채로 남는다. 복원 ↔ 스냅샷 수명이 짝을 이뤄야 한다.
-        try { File.Delete(OrigF); } catch { }
+        ClearSnapshot();
         // ⚠ ApplyModifiedPropertiesWithoutUndo는 씬을 dirty로 표시하지 않는다 → 복원된 값이 **메모리에만**
         //   있고 디스크와 어긋날 수 있다. 그게 의도다(부트 씬을 저장하지 않는다는 규칙). 대신 어긋남을 로그로 남긴다.
         Debug.Log("[PS_VerifyUI] Teardown: QuickTestStarter restored (메모리만 — QuickStart.unity은 저장하지 않는다). "

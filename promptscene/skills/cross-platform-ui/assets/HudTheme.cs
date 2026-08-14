@@ -19,11 +19,25 @@
 // v6 초안(panel α.42 + film α.28)의 원 안 배경은 L = 0.069(검은 환경) ~ 0.45(흰 환경)로 그 사이에
 // 걸쳐 있어서, 어두운 글리프가 **검은 환경에서 2.24:1**로 떨어졌다(v2가 밝은 환경에서 무너진 것의 정확한 거울상).
 // 정지 규칙대로 게이트가 아니라 디자인을 고쳤다 — 오너 결정은 "어두운 글리프 유지":
-//     · Film      α.28 → **α.60**  (어두운 글리프 2.24:1 → 7.17:1). 실측 스윕: .28=2.24 / .45=4.27 / .60=7.01
-//     · FilmHover α.38 → **α.70**
+//     · Film      α.28 → α.60  (어두운 글리프 2.24:1 → 7.17:1). 실측 스윕: .28=2.24 / .45=4.27 / .60=7.01
+//     · FilmHover α.38 → α.70
 //     · Scrim     α.42 → **α.78**  (라벨 1.72 → 6.09. 아래 "라벨" 문단 참고)
-// 즉 원은 "반투명 유리"에서 **"밝은 반불투명 판"**으로 이동했다. 배경이 40%만 비친다. 이게 어두운
-// 글리프가 성립하기 위한 최소 조건이고, iOS도 어두운 글리프는 **채워진** 원에서만 쓴다.
+// 즉 원은 "반투명 유리"에서 "밝은 반불투명 판"으로 이동했다 — 그때는 **판이 보장을 들었다.**
+//
+// ── 되돌림 (2026-08-12, 셸 2차): 보장을 판에서 잉크로 옮겼다 ─────────────────────────────────────
+// 위 결정의 대가는 "유리가 아니게 된다"였다. 배경이 40%만 비치는 원은 iOS 유리가 아니라 밝은 플라스틱
+// 버튼이고, 오너가 셸 1차에서 요구한 미감이 바로 그 지점이었다(검정 Scrim·흰 테두리 제거 = 유리 방향).
+// 그런데 α.60을 떠받치던 유일한 근거는 "어두운 글리프가 검은 환경에서 죽는다"였고, 그건 **글리프에
+// 밝은 헤일로가 없을 때만** 참이다. 셸 1차가 헤일로(TextHi 2px)를 넣으면서 그 전제가 사라졌다:
+//     · Film      α.60 → **α.30**   원 안 배경 L = 0.0732(검은 환경) ~ 순백(흰 환경)
+//     · FilmHover α.70 → **α.40**
+//   검은 환경: 어두운 글리프 자체는 2.28:1로 지지만 **헤일로가 원판 대비 7.74:1**로 형태를 든다.
+//   흰 환경:   헤일로는 원판에 녹지만(1.10:1) **어두운 글리프가 19.46:1**로 혼자 선다.
+//   두 처치가 서로 못 가는 끝을 하나씩 맡는다 — 어느 환경에서도 형태를 드는 층이 최소 하나 있다.
+// ⚠ 이 산술은 헤일로를 **든 잉크에만** 적용된다. KeyBadge 키캡이 α.60에서 7.17:1로 버티다가 α.30에서
+//   2.55:1로 떨어진 것이 그 증거다 — 그래서 키캡도 같은 헤일로를 달았다(KeyBadge.Halo 주석).
+//   Scrim은 **안 내린다**: 라벨 대비가 전적으로 여기서 나오고, Film과 달리 유리감에 기여하지 않는다.
+// ⚠ 산술이 통과해도 **미감은 사람이 판정한다**(이 프로젝트에서 산술 통과를 눈이 두 번 잡았다).
 //
 // ── 라벨: 산술을 통과했지만 눈으로 보고 되돌린 것 ────────────────────────────────────────────────
 // v6 초안은 패널 α.42 위의 TextLo(1.72:1)를 **불투명 아웃라인**(--tmp-outline)으로 구제했고, 그건 실제로
@@ -97,14 +111,54 @@ namespace PromptScene.Core.UI
         // ── 색 ──────────────────────────────────────────────────────────────────────────────────
         /// <summary>패널 = dim. 라벨 대비가 전부 여기서 나온다(α.78 → TextLo 6.09:1). 원의 Film 대비에는 거의 영향이 없다.</summary>
         public static readonly Color Scrim     = New(0x0A, 0x0D, 0x12, 0.78f);
-        /// <summary>원판. **α.28에서 올렸다** — 어두운 글리프가 검은 환경에서 2.24:1로 죽었다(위 산술 참고).</summary>
-        public static readonly Color Film      = New(0xFF, 0xFF, 0xFF, 0.60f);
-        /// <summary>레이 조준 피드백(hover). 장식이 아니라 "지금 이걸 겨누고 있다"는 유일한 신호다.</summary>
-        public static readonly Color FilmHover = New(0xFF, 0xFF, 0xFF, 0.70f);
-        /// <summary>링 위쪽(밝은 스펙큘러). 링 스프라이트가 위→아래 알파 그라데이션을 들고 있어 한 장으로 2톤을 낸다.</summary>
-        public static readonly Color RimTop    = New(0xFF, 0xFF, 0xFF, 0.55f);
-        /// <summary>링 아래쪽. RimTop 대비 비율로만 쓰인다(스프라이트 알파 하한).</summary>
-        public static readonly Color RimBot    = New(0xFF, 0xFF, 0xFF, 0.12f);
+        /// <summary>
+        /// 원판. **.60 → .30 → α.18**(유리 방향, 2026-08-12 오너 지시 "더 투명하게"). 형태 보장은 판이 아니라
+        /// 잉크(<see cref="GlyphInk"/> + <see cref="GlyphHalo"/>)가 든다 — 그래서 판을 계속 비울 수 있다.
+        /// 실측(선형): 검은 환경에서 원판 sRGB #757575(대 배경 4.16:1로 여전히 보인다) / 흰 환경에서는 순백으로 녹고
+        /// 그때 윤곽은 링이 든다. 더 내리면 어두운 환경에서도 원판이 사라져 링 하나에 전부 걸린다.
+        /// </summary>
+        public static readonly Color Film      = New(0xFF, 0xFF, 0xFF, 0.18f);
+        /// <summary>레이 조준 피드백(hover). 장식이 아니라 "지금 이걸 겨누고 있다"는 유일한 신호다. Film 대비 +.10 유지.</summary>
+        public static readonly Color FilmHover = New(0xFF, 0xFF, 0xFF, 0.28f);
+        /// <summary>
+        /// 링 위쪽(스펙큘러). 링 스프라이트가 위→아래 알파 그라데이션을 들고 있어 한 장으로 2톤을 낸다.
+        ///
+        /// ⭐ <b>흰색(α.55)에서 중간 톤으로 옮겼다 — 환경 대응(2026-08-12 오너 결정).</b> Film을 .30으로 내리자
+        /// 밝은 환경에서 원판이 사라지고 링만 윤곽을 들게 됐는데, <b>흰 링은 흰 배경에서 원리적으로 소멸한다</b>
+        /// (U8 캡처 실측: 밝은 환경에서 원판·링·배경이 전부 #FFFFFF = 버튼 경계가 시각적으로 없음).
+        /// 밝은 잉크든 어두운 잉크든 한쪽 끝에서 진다 — 그래서 <b>양쪽 끝에서 모두 살아남는 중간 휘도</b>로 간다.
+        /// 선형 합성 실측치(링 위쪽, 최악 환경): 검은 환경 <b>5.05:1</b> / 흰 환경 <b>2.98:1</b>.
+        /// 링은 <see cref="Roles.Decorative"/>라 4.5 하한의 대상이 아니다 — 여기서 필요한 건 "보인다"이지 "읽힌다"가 아니다.
+        /// 아래쪽이 옅어지는 것은 그대로 두었다: 검은 환경에서는 어둡게, 흰 환경에서는 밝게 잦아들어
+        /// 같은 한 장이 환경에 따라 반대로 기울고, 그게 유리 테두리처럼 읽히는 부분이다.
+        /// ⚠ ON 상태에서는 이 자리가 <see cref="Accent"/>로 틴트된다(v6.1) — 액센트 기계는 건드리지 않았다.
+        /// </summary>
+        public static readonly Color RimTop    = New(0x7A, 0x83, 0x94, 0.90f);
+        /// <summary>
+        /// 링의 **어두운 허리**. RGB는 쓰이지 않고 <b>RimTop 대비 알파 비율</b>로만 쓰인다(스프라이트 알파 하한).
+        /// α.35 → **α.55**로 올렸다: 미러 프로파일이 옆구리를 깎기 때문에, 바닥을 올려 두지 않으면
+        /// 밝은 환경에서 원의 옆면이 끊겨 보인다(윤곽을 링이 드는 구간이라 치명적이다).
+        /// </summary>
+        public static readonly Color RimBot    = New(0x7A, 0x83, 0x94, 0.55f);
+        /// <summary>
+        /// 링 하이라이트 **로브의 좁기**(1 = 선형 램프, 클수록 좁고 또렷한 하이라이트).
+        /// <see cref="RimMirror"/>와 짝이다 — 둘이 함께 <b>미러(거울) 프로파일</b>을 만든다.
+        ///
+        /// 유리 테두리와 거울 테두리의 차이는 하이라이트가 <b>몇 개냐</b>다. 위에서만 밝고 아래로 단조 감소하면
+        /// "빛을 위에서 받은 유리"이고, <b>위·아래 두 곳이 밝고 허리가 어두우면</b> 그게 거울/크롬으로 읽힌다
+        /// (아래 로브 = 바닥에서 되반사된 빛). 한 장 스프라이트로 내려면 세로 프로파일을 두 로브로 만들면 된다:
+        ///
+        ///     grade(t) = lerp(bottomRatio, 1, max( t^RimLobePower , RimMirror·(1-t)^RimLobePower ))
+        ///
+        /// 현재 값(3.0 / 0.75, bottomRatio = RimBot.a/RimTop.a = 0.611)의 실효 알파:
+        ///     위 α.90  ·  옆구리 α.59  ·  아래 α.81   → 두 개의 밝은 호 + 어두운 허리.
+        /// RimLobePower를 내리면 로브가 넓어져 유리 쪽으로, 올리면 좁아져 거울 쪽으로 간다.
+        /// RimMirror=0 이면 아래 로브가 사라져 이전의 단조 감소(유리) 프로파일로 돌아온다.
+        /// ⚠ 등급 없는 호출(Circle/Ring, bottomRatio=1)에는 아무 영향이 없다.
+        /// </summary>
+        public const float RimLobePower = 3.0f;
+        /// <summary>아래쪽 반사 로브의 세기(위 로브 대비). 0 = 미러 없음(단조 유리), 1 = 위아래 대칭.</summary>
+        public const float RimMirror = 0.75f;
         /// <summary>패널 테두리.</summary>
         public static readonly Color Rim       = New(0xFF, 0xFF, 0xFF, 0.14f);
         public static readonly Color RimLit    = New(0xFF, 0xFF, 0xFF, 0.26f);
@@ -119,14 +173,46 @@ namespace PromptScene.Core.UI
         /// ⚠ 현재 사용처 0 — Scrim α.78이면 라벨이 아웃라인 없이 6.09:1이고, 16px 한글에 아웃라인을 깔면 획이 뭉갠다.
         /// </summary>
         public static readonly Color TextOutline = New(0x0A, 0x0D, 0x12, 1.00f);
+
+        // ── 아이콘 잉크: **역할 토큰**. 색이 아니라 역할로 참조하게 만든다 ─────────────────────────
+        /// <summary>
+        /// 원판 안 아이콘의 잉크. <b>v6.2에서 흰색으로 뒤집혔다</b>(2026-08-12 오너 지시 "원판 안 이미지는 그냥 흰색").
+        /// 유리를 계속 비우려면(Film α.18) 잉크가 판에 기댈 수 없고, 밝은 잉크 + 어두운 헤일로 조합이
+        /// <b>양쪽 환경에서 같은 정체</b>를 유지한다 — 직전 구성(어두운 잉크 + 밝은 헤일로)은 어두운 방에서
+        /// 아이콘이 희게, 밝은 방에서 검게 읽혀 같은 버튼의 정체가 뒤집혔다(U8 캡처에서 눈이 잡음).
+        /// ⚠ 이 자리를 <b>토큰으로 올린 이유</b>: 잉크가 코드 다섯 군데에 색으로 박혀 있었고, 그래서
+        /// 액센트가 원판→테두리로 옮겨졌을 때 게이트만 옛 색을 계속 단정하는 드리프트가 났다.
+        /// 이제 HUD도 게이트도 <b>역할</b>을 참조하므로 값이 바뀌어도 같이 움직인다.
+        /// </summary>
+        public static readonly Color GlyphInk  = TextHi;
+        /// <summary>
+        /// 그 잉크의 보장 헤일로. <b>반드시 잉크의 반대 극이어야 한다</b> — 같은 극이면 자기대비 1.00:1로
+        /// 보강이 0이다(2026-08-11에 실제로 밟은 함정: 어두운 잉크에 <see cref="TextOutline"/>을 둘렀다).
+        /// 현재 짝: 흰 잉크 ↔ 어두운 헤일로 = 자기대비 17.67:1.
+        /// </summary>
+        public static readonly Color GlyphHalo = TextOutline;
         public static readonly Color Dot       = New(0xFF, 0xFF, 0xFF, 0.28f);
         public static readonly Color DotOn     = New(0xF2, 0xF4, 0xF8, 1.00f);
 
         // ── 형태 ────────────────────────────────────────────────────────────────────────────────
         public const int Radius  = 24;         // 패널 코너
         public const int BorderW = 1;          // 패널 테두리
-        public const int RimW    = 2;          // 원 링 / 배지 링
-        public const int OutlineW = 2;         // 라벨 아웃라인 두께 (v6 --tmp-outline)
+        public const int RimW    = 3;          // 원 링 / 배지 링 — 2→3(오너 지시 "약간 더 두껍게"). 미러 로브가 보이려면 두께가 필요하다
+        public const int OutlineW = 2;         // 글리프 헤일로 두께 (48px 글리프 기준 = 1/24)
+        /// <summary>
+        /// <b>라벨</b> 헤일로 두께. 글리프와 같은 기계(불투명 헤일로)를 쓰되 두께만 역할별로 갖는다.
+        ///
+        /// 왜 따로 있나 — 헤일로가 글자를 뭉개느냐는 절대 px이 아니라 **글자 크기 대비 상대 두께**의 문제다:
+        ///     v6가 눈으로 보고 버린 것 : 2px / <see cref="FontFoot"/> 16px = <b>1/8</b>   (한글 획이 서로 먹었다)
+        ///     현재 글리프              : 2px / <see cref="GlyphPx"/> 48px = <b>1/24</b>  (눈이 통과시켰다)
+        ///     라벨(이 값)              : 1px / 16px             = <b>1/16</b>  (버린 지점의 절반)
+        /// 즉 v6의 판정은 "라벨에 헤일로를 쓰지 마라"가 아니라 "1/8은 두껍다"였다. 두께를 역할로 분리하면
+        /// 같은 보장 기계를 라벨에도 쓸 수 있고, 그래야 Scrim α0(유리 방향)에서 라벨이 산다 — 라벨은
+        /// <b>불투명 잉크 대 환경</b>이라 판(Scrim/Film)을 아무리 손봐도 밝은 방에서 1.65:1을 못 넘긴다
+        /// (선형 교정 후 재계산: 'Scrim 알약' 안조차 2.33:1로 미달).
+        /// ⚠ 최종 판정은 눈이다. U8 캡처에서 뭉개 보이면 두께가 아니라 **라벨을 지우는** 쪽으로 간다.
+        /// </summary>
+        public const int LabelHaloW = 1;
         /// <summary>시각 원 지름.</summary>
         public const int CircleD = 120;
         /// <summary>히트박스 = 원 + HitPad*2. 패딩이 곧 원 사이 간격의 절반이다.</summary>
@@ -215,13 +301,29 @@ namespace PromptScene.Core.UI
             public static readonly Color[] WorstEnvironments = { Color.white, Color.black };
 
             static float Lin(float c) => c <= 0.04045f ? c / 12.92f : Mathf.Pow((c + 0.055f) / 1.055f, 2.4f);
+            /// <summary>선형 → sRGB. Lin의 정확한 역함수(Over가 sRGB 표현으로 되돌아오기 위해 필요하다).</summary>
+            static float Srgb(float c) => c <= 0.0031308f ? c * 12.92f : 1.055f * Mathf.Pow(c, 1f / 2.4f) - 0.055f;
 
             public static float Luminance(Color c) => 0.2126f * Lin(c.r) + 0.7152f * Lin(c.g) + 0.0722f * Lin(c.b);
 
+            /// <summary>
+            /// 알파 합성. ⭐ <b>선형 공간에서 섞는다</b> — 프로젝트가 Linear 색 공간이고 GPU가 거기서 블렌딩하기 때문이다.
+            ///
+            /// ⛔ 2026-08-12까지 이 함수는 감마 값을 그대로 섞었고, 그래서 **반투명 스택의 숫자가 전부 틀렸다.**
+            /// 실측으로 잡혔다(U8 캡처 픽셀 샘플, sRGB RenderTexture = 화면과 동일):
+            ///     Film α.30 원판 / 검은 환경 → 화면 실측 <b>#949494</b> vs 옛 감마 계산 #4D4D4D
+            /// 틀린 방향은 균일하지 않다. 어두운 환경 위 합성 배경을 **실제보다 어둡게** 보므로
+            /// 어두운 잉크에는 비관적(없는 FAIL을 만든다)이고 밝은 잉크에는 낙관적(진짜 FAIL을 놓친다)이다.
+            /// 이 오차가 실제로 만든 결정 두 건:
+            ///     · Film을 α.28 → α.60으로 올린 것 (근거였던 "어두운 글리프 2.24:1"은 선형에서 6.4:1 = 애초에 PASS)
+            ///     · 글리프·KeyBadge 키캡에 헤일로를 단 것 ("헤일로 대 원판 7.74:1"도 선형에서는 2.76:1)
+            /// 값들은 오너 결정으로 살아 있지만(되돌리려면 별도 승인), <b>산술은 이제 렌더러와 같은 공간에서 돈다.</b>
+            /// 불투명 잉크 대 환경(예: 라벨 1.65:1)은 섞을 것이 없으므로 이 교정과 무관하게 그대로다.
+            /// </summary>
             public static Color Over(Color src, Color dst) => new Color(
-                src.r * src.a + dst.r * (1f - src.a),
-                src.g * src.a + dst.g * (1f - src.a),
-                src.b * src.a + dst.b * (1f - src.a), 1f);
+                Srgb(Lin(src.r) * src.a + Lin(dst.r) * (1f - src.a)),
+                Srgb(Lin(src.g) * src.a + Lin(dst.g) * (1f - src.a)),
+                Srgb(Lin(src.b) * src.a + Lin(dst.b) * (1f - src.a)), 1f);
 
             public static Color Composite(Color env, IList<Color> stackRootFirst)
             {
@@ -337,8 +439,12 @@ namespace PromptScene.Core.UI
             var px = new Color32[d * d];
             for (int y = 0; y < d; y++)
             {
-                // y=0 이 아래. 위(y=d-1)에서 1.0, 아래에서 bottomRatio.
-                float grade = Mathf.Lerp(bottomRatio, 1f, d > 1 ? (float)y / (d - 1) : 1f);
+                // y=0 이 아래. **미러 프로파일**: 위 로브 + 아래 반사 로브, 그 사이 어두운 허리(HudTheme.RimLobePower 주석).
+                // 등급 없는 호출(Circle/Ring)은 bottomRatio=1로 들어와 grade가 전 구간 1 — 프로파일은 무해하게 지나간다.
+                float t01   = d > 1 ? (float)y / (d - 1) : 1f;
+                float lobeT = Mathf.Pow(t01, HudTheme.RimLobePower);                      // 위(주) 하이라이트
+                float lobeB = HudTheme.RimMirror * Mathf.Pow(1f - t01, HudTheme.RimLobePower); // 아래(반사) 하이라이트
+                float grade = Mathf.Lerp(bottomRatio, 1f, Mathf.Max(lobeT, lobeB));
                 for (int x = 0; x < d; x++)
                 {
                     float dist = new Vector2(x + 0.5f - c, y + 0.5f - c).magnitude - r;

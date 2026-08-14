@@ -21,8 +21,8 @@ using PromptScene.Core.UI;      // HudTheme / HudSprites / HudIcons — the toke
 ///
 /// ── glass v6: 제목도 문구도 없다. 원 4개/페이지 + 넘길 때만 보이는 점. ───────────────────────────────────────
 /// 상태를 **글자로 말하지 않는다**: ON은 원의 Accent 채움 + 라벨 강조로만 말한다(`": ON"` 0건).
-/// 글리프는 OFF/ON **양쪽 모두 어둡다**(<see cref="HudTheme.GlyphDark"/>) — 그게 성립하려면 Film이 충분히
-/// 불투명해야 하고, 그 알파는 대비 산술이 정했다(HudTheme 헤더 참고). 라벨은 불투명 아웃라인으로 대비를 얻는다.
+/// 글리프 잉크는 OFF/ON **양쪽에서 같다**(<see cref="HudTheme.GlyphInk"/> — v6.2에서 흰색). 판(Film α.18)이
+/// 아니라 잉크와 그 짝 헤일로(<see cref="HudTheme.GlyphHalo"/>)가 형태를 보장하므로 유리를 계속 비울 수 있다.
 /// 파괴적 액션("측정 지우기")도 같은 원형 버튼이지만 **액센트를 절대 입지 않는다**.
 ///
 /// ── DESIGN TOKENS ────────────────────────────────────────────────────────────────────────────────────────────
@@ -308,7 +308,7 @@ public class CrossPlatformRoomHud : MonoBehaviour
             if (useSprite)
             {
                 icon.sprite = pick.Sprite;
-                icon.color  = HudTheme.GlyphDark;              // 스프라이트도 같은 잉크로 틴트한다
+                icon.color  = HudTheme.GlyphInk;               // 스프라이트도 같은 역할 토큰으로 틴트한다
                 icon.preserveAspect = true;
             }
         }
@@ -351,9 +351,9 @@ public class CrossPlatformRoomHud : MonoBehaviour
     /// <summary>
     /// State is told by the RIM, not by text and not by the fill (v6.1): ON = <see cref="HudTheme.Accent"/> ring;
     /// OFF = <see cref="HudTheme.RimTop"/> ring. The disc stays <see cref="HudTheme.Film"/> glass in both states so
-    /// the accent never floods the icon itself. The glyph stays <see cref="HudTheme.GlyphDark"/> in BOTH states —
-    /// which is exactly why Film has to be opaque enough; see the arithmetic in HudTheme's header. There is no
-    /// `": ON"` string anywhere, and the size never changes between states.
+    /// the accent never floods the icon itself. The glyph stays <see cref="HudTheme.GlyphInk"/> in BOTH states —
+    /// its legibility comes from the ink/halo PAIR, not from the plate, which is what lets Film stay sheer
+    /// (see HudTheme's header). There is no `": ON"` string anywhere, and the size never changes between states.
     /// </summary>
     private void RefreshCell(string id)
     {
@@ -374,7 +374,7 @@ public class CrossPlatformRoomHud : MonoBehaviour
 
         if (_glyphs.TryGetValue(id, out var glyph) && glyph != null)
         {
-            glyph.color = HudTheme.GlyphDark;
+            glyph.color = HudTheme.GlyphInk;      // 역할 토큰 — 값(흰/검)은 테마가 정한다
             EnsureGlyphHalo(glyph);
         }
 
@@ -383,35 +383,44 @@ public class CrossPlatformRoomHud : MonoBehaviour
             label.color     = on ? HudTheme.TextHi : HudTheme.TextLo;
             label.fontSize  = HudTheme.FontFoot;
             label.fontStyle = FontStyle.Normal;      // never faux-bold: emphasis is weight (600) or colour
+            EnsureLabelHalo(label);                  // 판이 비어 있으므로(Scrim α0) 라벨도 잉크가 보장을 든다
         }
     }
 
     /// <summary>
-    /// 밝은 헤일로 — the glyph keeps its DARK ink (so the opaque Accent disc still reads at 10.26:1 when ON) and
-    /// gains a LIGHT outline so its shape survives when the OFF disc is sheer enough to let a dark room through.
+    /// 잉크의 짝이 되는 헤일로. 색은 고르지 않는다 — <see cref="HudTheme.GlyphHalo"/>가 정한다. 그게 요점이다:
+    /// 잉크와 헤일로는 **항상 반대 극이어야** 하는 한 쌍인데, 두 값을 코드에서 각각 고르면 언젠가 같은 극이 된다
+    /// (2026-08-11에 실제로 그랬다 — 어두운 잉크에 어두운 아웃라인, 자기대비 1.00:1로 보강이 0이었다).
     ///
-    /// ⛔ Do NOT use <see cref="HudTheme.TextOutline"/> here — it is #0A0D12, the SAME ink as
-    /// <see cref="HudTheme.GlyphDark"/>, so a dark-on-dark outline reinforces nothing (self-contrast 1.00:1) and
-    /// merely thickens the shape that is already vanishing. Measured 2026-08-12 at Film α.30:
-    ///     dark glyph + TextOutline → self 1.00:1, over a dark room 2.28:1   ⛔
-    ///     dark glyph + TextHi halo → self 17.67:1, halo vs dark disc 7.74:1 ✅
-    ///     light glyph + TextOutline→ self 17.67:1 BUT 1.72:1 against the ON Accent disc ⛔
-    /// Over a BRIGHT room the halo disappears into the disc (1.10:1) and carries nothing — that is fine, because
-    /// there the dark glyph itself is already at 19.46:1. Each treatment covers the end the other cannot.
+    /// v6.2 구성(오너 지시 "원판 안 이미지는 그냥 흰색"): **흰 잉크 + 어두운 헤일로**.
+    ///     자기 헤일로 대비 17.67:1 — 배경 스택이 무엇이든 글자 둘레가 항상 같은 색이라 보장이 성립한다.
+    ///     밝은 방: 원판이 순백으로 녹아 흰 잉크 혼자서는 1.00:1 → **어두운 헤일로가 형태를 전부 든다.**
+    ///     어두운 방: 원판 #757575 위 흰 잉크가 이미 4.6:1 → 헤일로는 윤곽만 다진다.
+    /// 직전 구성(어두운 잉크 + 밝은 헤일로)을 버린 이유는 산술이 아니라 **눈**이다: 어두운 방에서 아이콘이
+    /// 희게, 밝은 방에서 검게 읽혀 같은 버튼의 정체가 환경마다 뒤집혔다(U8 캡처).
     ///
-    /// Thickness is <see cref="HudTheme.OutlineW"/> (2 px) on a <see cref="HudTheme.GlyphPx"/> (48 px) glyph = 1/24.
-    /// The outline v6 threw away was the same 2 px on a 16 px Hangul LABEL = 1/8, where the strokes ate each other.
-    /// A third of that relative weight on a single icon glyph is a different proposition — but it is still a
-    /// **taste** call, so look at the U8 captures before believing this arithmetic (twice now, the eye has caught
-    /// what the contrast gate passed).
+    /// 두께는 <see cref="HudTheme.OutlineW"/>(2px) / <see cref="HudTheme.GlyphPx"/>(48px) = 1/24.
+    /// v6가 눈으로 보고 버린 아웃라인은 같은 2px를 **16px 한글 라벨**에 두른 1/8이었다(획이 서로 먹었다).
+    /// 그래도 미감은 사람 몫이다 — U8 캡처를 보고 믿어라.
     /// </summary>
-    private static void EnsureGlyphHalo(Text glyph)
+    private static void EnsureGlyphHalo(Text glyph) => EnsureHalo(glyph, HudTheme.OutlineW);
+
+    /// <summary>
+    /// 라벨 헤일로. 글리프와 **같은 기계**, 두께만 역할값(<see cref="HudTheme.LabelHaloW"/> 1px).
+    /// 라벨은 불투명 잉크가 환경 위에 바로 놓이므로(패널 Scrim α0 = 유리 방향) 판으로는 구제가 불가능하다:
+    /// 밝은 방에서 TextLo는 1.65:1이고, Scrim 알약을 되살려도 선형 산술로 2.33:1이라 여전히 미달이다.
+    /// 보장을 들 수 있는 건 잉크 자신뿐 → 자기 헤일로 대비 TextLo 11.79:1 / TextHi(ON) 17.67:1.
+    /// 두께를 글리프의 2px가 아니라 1px로 두는 이유는 <see cref="HudTheme.LabelHaloW"/> 주석의 상대 두께 산술.
+    /// </summary>
+    private static void EnsureLabelHalo(Text label) => EnsureHalo(label, HudTheme.LabelHaloW);
+
+    private static void EnsureHalo(Text t, int width)
     {
-        var halo = glyph.GetComponent<Outline>();
-        if (halo == null) halo = glyph.gameObject.AddComponent<Outline>();
-        halo.effectColor     = HudTheme.TextHi;
-        halo.effectDistance  = new Vector2(HudTheme.OutlineW, HudTheme.OutlineW);
-        halo.useGraphicAlpha = false;      // the halo must not inherit the glyph's alpha or it fades with it
+        var halo = t.GetComponent<Outline>();
+        if (halo == null) halo = t.gameObject.AddComponent<Outline>();
+        halo.effectColor     = HudTheme.GlyphHalo;
+        halo.effectDistance  = new Vector2(width, width);
+        halo.useGraphicAlpha = false;      // the halo must not inherit the ink's alpha or it fades with it
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────

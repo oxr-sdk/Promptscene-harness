@@ -258,9 +258,9 @@ public class PS_AssembleUI {
         cBtn.targetGraphic = disc;
 
         // Glyph는 Disc의 **자식**이다 → 조상 체인 [Scrim, Film]이 곧 U7의 대비 스택이 된다.
-        var glyph = MkText("Tmpl"+HudTheme.Roles.Glyph, disc.transform, HudTheme.GlyphPx, HudTheme.GlyphDark, TextAnchor.MiddleCenter);
+        var glyph = MkText("Tmpl"+HudTheme.Roles.Glyph, disc.transform, HudTheme.GlyphPx, HudTheme.GlyphInk, TextAnchor.MiddleCenter);
         glyph.text = "?"; Stretch(glyph.gameObject);
-        var icon = MkImage("Tmpl"+HudTheme.Roles.Icon, disc.transform, HudTheme.GlyphDark, null, Image.Type.Simple);
+        var icon = MkImage("Tmpl"+HudTheme.Roles.Icon, disc.transform, HudTheme.GlyphInk, null, Image.Type.Simple);
         var iconRT = (RectTransform)icon.transform;
         iconRT.anchorMin = iconRT.anchorMax = new Vector2(0.5f,0.5f); iconRT.pivot = new Vector2(0.5f,0.5f);
         iconRT.sizeDelta = Vector2.one * HudTheme.GlyphPx;
