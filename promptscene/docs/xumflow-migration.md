@@ -479,12 +479,21 @@ XRCollab M2의 그랩은 **데스크톱 클릭**(GrabbableProps.OnClick + Grabba
   - 실기기 VR 그랩(V2), 경합 뺏기(예측=등급2), 던지기 velocity의 네트워크 전파.
   - **다트 확장(지시 §5)** = 미착수. 그랩 루프는 PASS했으나 다트의 검증 가치(비행 전파·명중→점수)는 2인+COMPOSITION이라 이 세션 자동판정 범위 밖 → 다음 단계(욕심 안 냄).
 
-### 11.6 2인 대기 큐 (MPPM 결정 대기) — 갱신
-studio 2번째 프로세스 수단 부재(§10.3 — MPPM/ParrelSync 미설치, 경량 스탠드얼론 빌드 없음)로 아래 2인 검증을 **일괄 보류**. MPPM(권장, §10.3-A) 갖춰지면 함께 집행:
-1. **Chat 양방향**(§10.3): A↔B 송수신 파리티.
-2. **Grab 핸드오버**(XRCollab M2 5신호 대응 — 정의만 확정): ①A잡기→Owner=A 양측 ②A놓기→위치전파+Owner 유지(비반납 Takeover) ③B탈취→Owner=B(A도 확인) ④B놓기→A가 위치 관측 ⑤A재탈취→Owner=A. 위치 전파 = client-auth NetworkTransform(새 오너 authority 자동 승계, grab-ownership-survey §Q3).
-3. (후속) 다트 비행 동기·명중→점수(2인+COMPOSITION).
-4. **(신규 §12) 과녁 공유 파리티**: 2클라가 하나의 과녁 세트 공유(spawn-or-reuse), 한쪽 명중이 양쪽에 반영 — Loop 3(COMPOSITION 서버권위 집계)와 함께 집행.
+### 11.6 2클라 파리티 — ✅ 인프라 확보 + 부분 집행 (2026-08-19, 상세 §17)
+
+§10.3의 "2번째 프로세스 수단 부재" 블록은 **ParrelSync 클론으로 해소**(MPPM 아님 — 매니페스트 무수정 경로). 큐 4건의 현재 상태:
+
+| # | 항목 | 상태 | 근거 |
+|---|---|---|---|
+| 1 | **Chat 양방향** | ✅ **PASS (4신호)** | A→B 수신 / B→A 회신 / 연속 발신 순서 보존 / 발신자 id 교차 일치. §17.4 |
+| 2 | **Grab 핸드오버**(5신호) | ⬜ **미실행** | 차단 사유 = `GrabbableProps`가 **어느 현존 룸에도 배치돼 있지 않다**. 증명했던 `PromptSceneRoom_1.unity`는 **디스크에 없음**(§17.1). 코드·프리팹은 생존 → 배치는 `/add-component` 작업 |
+| 3 | 다트 비행 동기·명중→점수 | ⬜ 미실행 | 위와 동일(DartProps 미이식) |
+| 4 | **과녁→점수 동기**(D2 동형) | ⬜ **미실행** | 위와 동일 — `TargetProps`/`ScoreHud`/`TargetShootoutMatch` 전부 미배치 |
+
+**보너스로 함께 실측된 것(§10.3에서 "미실증"이던 항목):**
+- **빈 룸 2인 스폰 4신호 = PASS** — studio 최초 2인(§17.3).
+- **백필 없음 확증** — 재조인한 B의 `ChatChannelView.Log`는 **1건**(조인 후 발신분)뿐, A는 5건 전체. `ObserversRpc`에 `BufferLast`를 일부러 안 건 §10.2 설계가 2클라에서 실제로 그렇게 동작함.
+- **게스트 디스커넥트 = 깨끗한 디스폰** — B가 나가면 A에서 B 소유 오브젝트 3종이 사라지고 고아 0. 서버 소유 `ChatChannel`은 생존.
 
 ## 12. TargetProps FEATURE 이식 (D2 점수게임 여정 Loop 1) — ✅ 단일 host §5 PASS (2026-07-24)
 
@@ -645,3 +654,94 @@ XRCollab `/scaffold-content`은 "프롬프트→Ruler 템플릿으로 FEATURE �
 - **밖(경계):** 기능의 실 동작·미감(사람/비전), 실 포인터이벤트→레이캐스트(주입은 SubmitExternalRay/OnClick 경계), 2클라 파리티(MPPM 큐), 실기기/XRI 손 조작(사람+시뮬), Smart-Deploy. ⛔ 능력(경합 투사체=예측=SYSTEMS 해동)은 짓지 말고 개척 청구서.
 - ⚠ **아직 브랜치 안 가름**(지시 §3): main에 커밋. **다음 = ①`/compose-room` studio판 재작성(assemble-room+add-component 조율, 마이그레이션 큐 다음) ②MPPM 2클라 파리티 ③상위 오케스트레이터.**
 
+
+
+---
+
+## 17. ⭐ studio 2클라 인프라 확보(ParrelSync) + 게이트 1 PASS + 대기 큐 부분 집행 (2026-08-19)
+
+> 목표: ①B 프로세스 확보 ②빈 룸 2인 스폰 ③대기 큐 3종. 순서 고정(①→②→③, 오진 방지).
+> **결과: ① ✅ ParrelSync 도입 + 역할 브리지 성립 / ② ✅ 게이트 1 4신호 PASS(studio 최초 2인) / ③ 🟡 부분 — Chat 양방향 4신호 PASS, Grab·과녁 미실행(룸 부재).**
+> 판정 주체: A = 에이전트 MCP, B = `-logFile` 로그.
+
+### 17.1 ⛔ 선행 발견 — `PromptSceneRoom_1.unity` 가 디스크에 없다
+
+§9~§14가 전부 그 룸 위에서 증명됐는데 **현재 `Assets/App/Scenes/` 에는 `AssembleRoom / QuickRoom / QuickStart / T_RoomA / T_RoomB` 5개뿐**이다(`AddCompProof_1`도 없음). Addressables 등록도 `AssembleRoom`, `Scenes/T_RoomA`, `Scenes/T_RoomB` 3건뿐. **코드·프리팹은 전부 생존**(ChatChannel/GrabbableProp/Target/MatchView/RulerMeasurement prefab + PromptScene 소스 28개). 현재 유일한 PromptScene 룸 = **`AssembleRoom`**, 내용물은 GUID 대조 실측으로:
+
+    RoomCore · CrossPlatformRoomHud · HudPager · HudPlacement · HudSummon · ChairSitContent · ChatContent · ChatWorldPanel · XRWorldClicker
+
+→ **Chat 은 있고 Grab·Target·Score·Match·Ruler 는 없다.** 이것이 §11.6 큐 3종 중 2종이 미실행인 유일한 이유(인프라 문제 아님).
+
+### 17.2 인프라 — ParrelSync 1.5.3 (매니페스트 무수정) + 역할 브리지
+
+**도입:** GitHub 릴리스 `.unitypackage`(17.5 KB)를 풀어 **`Assets/ThirdParty/ParrelSync/`** 로 재배치(GUID 보존). ⛔ UPM git URL 미사용 → **`Packages/manifest.json` md5 세션 전후 동일**(`16c0670456…`). Unity 6000.3.11f1 컴파일 0, 타입 21개 `ParrelSync` asmdef 적재, 메뉴 `ParrelSync/Clones Manager` 노출.
+
+**클론 레이아웃(실측, `CreateCloneFromPath` 소스와 일치):**
+
+| 경로 | 처리 | 함의 |
+|---|---|---|
+| `Assets` / `ProjectSettings` / `LocalPackages` | **심링크(junction)** | A·B가 **씬·설정·소스를 공유** → "B 씬만 다르게"는 불가 = 역할은 런타임 분기여야 한다. LocalPackages 공유 덕에 XREAL tgz `file:` 참조가 클론에서도 해석됨 |
+| `Library` / `Packages` | **복사** | 콜드 재임포트 회피(PackageCache 81개 그대로). `Packages` 사본이라 클론이 manifest를 만져도 원본 무영향 |
+| `UserSettings` | **없음(클론이 새로 만듦)** | ⭐ MCP 포트 분리의 근거 — 아래 |
+| 루트 `.clone` / `.parrelsyncarg` | 클론 전용 파일 | `IsClone()` = `.clone` 존재 여부. arg 기본값 `client_0` |
+
+**⭐ MCP 포트는 고정이 아니라 경로 해시다.** `UnityMcpPluginEditor.Port` = 설정된 host URI 포트, 없으면 `GeneratePortFromDirectory()` = **SHA256(소문자 CWD) → 20000+h%10000**. 재현 계산으로 검증: `c:\j_0\xumflow-studio` → **21017**(= A의 실제 포트), `c:\j_0\xumflow-studio_clone_0` → **25821**. `UserSettings/` 가 클론에 복사되지 않으므로 클론은 자기 경로로 새 설정을 굽는다 → 클론 실측 `"host": "http://localhost:25821"`. **포트 충돌은 구조적으로 불가능**(수동 분리 불요).
+
+**역할 브리지 = `Assets/PromptScene/Harness/Editor/` (PromptScene 소유, shipped 무수정)**
+
+`startAsServer` 의 소유자는 shipped `QuickTestStarter`(`Assets/App/Scripts/Tools/QuickTestStarter.cs:27`, 어셈블리 **`Assembly-CSharp`** — 씬의 `App.HotUpdate::` 표기는 stale 메타)의 `[SerializeField] private bool` 이고, **값은 씬 에셋**(`QuickStart.unity:151`)에 산다. Assets가 심링크라 A·B가 같은 값을 읽으므로 런타임에 덮어야 한다.
+
+- `QuickTestRoleBridge.cs` — `[InitializeOnLoad]` 로 `ClonesManager.IsClone()`(리플렉션, 미설치여도 안전)을 읽어 `SessionState` 에 역할 기록 → **`[RuntimeInitializeOnLoadMethod(AfterSceneLoad)]`** 에서 `QuickTestStarter` 의 private 필드를 리플렉션으로 `startAsServer=false, hostMode=false` 로 덮음.
+- ⭐ **설계 변경(지시안 대비):** 지시는 "Editor 훅 → SessionState → 런타임 얇은 컴포넌트"였으나 **런타임 컴포넌트를 없애고 Editor 어셈블리 하나로 끝냈다.** 근거 2가지 — ① `[RuntimeInitializeOnLoadMethod]` 는 **Editor 어셈블리에서도 발화한다**(실측 증명: 마커 `SessionState` 로 확인) ② 하네스가 `App.HotUpdate`(hot-update DLL, Smart-Deploy 배포 대상)에 섞이지 않는다. 부수 효과로 **shipped 씬에 오브젝트를 추가할 필요도 없어졌다.**
+- **타이밍 안전마진:** `AfterSceneLoad` = 모든 `Awake` 후 · 모든 `Start` 전. 게다가 `QuickTestStarter.Start()` 는 코루틴이라 필드를 읽기까지 최대 10초를 기다린다.
+- **⚠ fail-closed를 "안 걸렸다"가 아니라 재현으로 증명:** 원본(IsClone=false)에서 Play 실행 → 마커 `role=unset(original) applied=False`(= 훅은 **돌았고** 아무것도 안 했다) + `startAsServer=True hostMode=True` 유지 + `Desktop(Clone)` 스폰 + 씬 에셋 md5 불변. **훅이 발화했음까지 확인**했으므로 "안 돌아서 무사한 것"과 구분된다.
+
+**클론 조종 채널(`CloneHarness.cs`)** — B에는 MCP가 없으므로: 판정 = `Debug.Log` → `-logFile`, 명령 = **프로젝트 루트**의 `.promptscene-cmd`(1줄=1명령, 소비 후 삭제), 자동 Play = 루트의 `.promptscene-autoplay`. **루트에 두는 게 핵심** — `Assets/` 안에 두면 심링크로 A까지 무장된다. 역할이 client가 아니면 `EditorApplication.update` 구독조차 안 한다(A에서 완전 불활성, 실측 확인).
+
+### 17.3 게이트 1 — 빈 룸 2인 스폰 ✅ **4신호 PASS (studio 최초 2인)**
+
+대상 = `AssembleRoom`(§5의 두 후보 중 현존하는 유일한 룸), A=host(`startAsServer✅+hostMode✅`), B=클론 자동 client.
+
+| 신호 | 결과 |
+|---|---|
+| ① A 자기 아바타 `IsOwner=True` | A: `id=1 Desktop(Clone) owner=True ownerCid=0` |
+| ② B에 원격 `Desktop(Clone)` `IsOwner=False` | B: `id=1 Desktop(Clone) owner=False ownerCid=0` + 자기 것 `id=4 owner=True ownerCid=1`. A쪽도 `conns=2 [0,1]` |
+| ③ 위치 전파(A 이동 → B 관측) | A가 `id=1` 을 `(5,0,3)` 으로 이동 → B 프로브 `id=1 … pos=5.00,0.00,3.00` |
+| ④ objId 양측 교차 일치 | 양쪽 `{0,1,2,3,4,5,6}` 동일 집합, 소유만 반전. `id=2` 는 이름만 다름(A `[0] MS-7D31 …` vs B `_XBot-networked_NameTag` = 네임태그 텍스트 차이, 같은 objId) |
+
+**재조인도 성립:** B stop → 자동 재Play → 새 clientId(1→3), 새 아바타 `id=8`, 서버 소유 `ChatChannel id=7` 생존, A에서 구 오브젝트 고아 0.
+
+### 17.4 게이트 2 — 대기 큐 3종 🟡 **1/3 PASS, 2/3 미실행(룸 부재)**
+
+**① Chat 양방향 — ✅ 4신호 PASS** (A=host cid0, B=클론 cid1, 채널 `objId=7` 양측 일치)
+
+| 신호 | 결과 |
+|---|---|
+| A→B 수신 | A가 2건 발신 → B 로그 `chatLog=2[0:A-1 … / 0:A-2 …]` |
+| B→A 회신 | `.promptscene-cmd` 로 B가 2건 발신 → A `chatLog=4[… / 1:B-1 … / 1:B-2 …]` |
+| 연속 발신 순서 보존 | A-1→A-2, B-1→B-2 양측 동일 순서 |
+| 발신자 표시 교차 일치 | 양측 모두 `0,0,1,1` — **서버 주입 id**(위조 아님), B의 로그가 A와 내용·순서 완전 일치 |
+
+**② Grab 핸드오버 / ③ 과녁→점수 — ⬜ 미실행.** 사유는 §17.1(해당 FEATURE/COMPOSITION이 어느 현존 룸에도 배치돼 있지 않고, 증명 룸이 디스크에 없음). **인프라 문제가 아니다** — 게이트 1이 PASS했고 Chat이 같은 룸에서 양방향으로 돈다. 배치는 `/add-component` 작업이라 이번 세션 범위(검증) 밖으로 두고 보고.
+
+### 17.5 ⭐ 신규 트랩표 (전부 이번 세션 실측)
+
+| # | 트랩 | 실측 내용 | 대응 |
+|---|---|---|---|
+| T1 | **심링크 씬 공유** | `Assets`·`ProjectSettings`가 junction → A/B가 `QuickStart.unity` 의 `startAsServer` 를 **같이** 읽는다 | 역할은 런타임 분기(§17.2 브리지). 클론 전용 상태는 **프로젝트 루트**에 둔다 |
+| T2 | **MCP 포트** | 고정 21017 아님 — **SHA256(CWD) 해시**. `UserSettings/`가 클론에 없어 클론은 25821을 굽는다 | 충돌 구조적 불가. 수동 분리 불요 |
+| T3 | ⛔ **클론 MCP의 NuGet 재복원이 Play를 끊는다** | 클론 시작 ~6분 뒤 `[Unity-MCP DependencyResolver] Restoring NuGet packages…` → `AssetDatabase` refresh → **도메인 리로드 → 클론 Play 종료 → 접속 끊김.** 첫 재조인이 이것 때문에 실패했다(넷코드 문제 아님) | 재복원이 끝난 뒤 다시 Play하면 정상. 근본 대응 = **클론에서 MCP 플러그인 비활성** 권장 |
+| T4 | ⛔ **클론 종료가 원본의 MCP 서버를 죽인다** | 클론 에디터 quit 후 A의 `unity-mcp-server`(pid 27536) **소멸**, 21017 LISTEN 사라짐. A의 Unity 에디터 자체는 멀쩡, 자동 재기동 안 함 | 서버 바이너리 수동 재기동으로 복구 가능: `Library/mcp-server/win-x64/unity-mcp-server.exe port=21017 plugin-timeout=10000 client-transport=streamableHttp authorization=none` (실측 복구 성공, 플러그인 핸드셰이크 재성립) |
+| T5 | **클론이 원본 ILPP 러너를 죽인다** | 클론 첫 컴파일에서 `Found a lingering IL Post Processing runner process with PID 59752. Killing it.` — 그 PID는 **A의** `Unity.ILPP.Runner` | Unity가 필요 시 재기동. 이번 세션 A 컴파일 영향 없음(관측) |
+| T6 | **ParrelSync가 공유 Assets에 자산을 쓴다** | 클론 생성 시 **A가** `Assets/Plugins/ParrelSync/ScriptableObjects/ParrelSyncProjectSettings.asset` 생성(공유 폴더) | 무해하나 신규 공유 자산이므로 인지 필요 |
+| T7 | **§7② MCP NuGet DLL 공유 — 실제로는 무사** | `Assets/Plugins/NuGet/`(UPM 비관리, 심링크로 공유)에 클론이 restore를 돌렸으나 **파일 127개 불변·오늘 수정 0건**. 클론은 자기 `Library/NuGetCache` 를 채웠을 뿐 | 위험은 T3(Play 끊김)로 나타나지 A의 DLL 손상으로는 안 나타났다 |
+| T8 | **입력 포커스** | 에디터 2개 중 활성창만 실입력을 받는다 | 이번 세션은 **실입력을 아예 안 썼다**(A=MCP 트랜스폼/RPC, B=파일 명령) → 함정 자체를 우회. 실 키보드 2인 조작은 미검증 |
+| T9 | **디스크·시간** | 클론 생성 = Library+Packages 복사, 여유 885G→882G(**약 3 GB**), 소요 1분 미만. 클론 콜드 오픈(컴파일 포함) 약 5분 | — |
+
+**트랩 J/K(MST 소산) 실측:** studio QuickTest는 MST를 안 쓰고 FishNet 직결이라 **토큰 개념 자체가 없다 → 트랩 K(콜드스타트 토큰 만료)는 구조적 부재 확인.** 트랩 J(게스트 조인 flakiness)는 **1게스트 3회 조인 3회 성공**(중간 1회 실패는 T3 = MCP 도메인 리로드, 넷코드 아님) — **3인+ 동시 조인은 미실측.** → `/multiplayer-check` studio 편 SSOT 씨앗.
+
+### 17.6 정직 계약 (이 세션 증명 범위)
+
+- **증명됨(같은 머신, 에디터 2개, 데스크톱, A=MCP·B=logFile 판정):** ParrelSync 도입(매니페스트 무수정) · 역할 자동 분기(A=host/B=client) + **원본 무변화 재현** · 빈 룸 2인 스폰 4신호 · Chat 양방향 4신호 · 재조인 · 백필 없음 · 게스트 디스폰 정리 · MCP 포트 분리 · 원본 컴파일/MCP 무손상(T4 복구 후).
+- **밖(미실증):** Grab 핸드오버·과녁→점수(룸 부재) · **실 키보드/마우스 입력 2인 조작**(T8) · 3인+ · 빌드된 클라·실기기(V2) · 배포(Smart-Deploy) · XR 실조작 · 미감 · 경합 뺏기(D4-2).
+- **원상복구:** `QuickStart.unity` 세션 시작 md5(`7a2071c2…`)로 복귀(`startAsServer=1 hostMode=1 roomSceneKey=Scenes/T_RoomA`), 플레이모드 아님, 클론 에디터 종료·무장 해제. ⚠ `QuickStart.unity` 는 **세션 시작 시점부터 이미** git HEAD와 달랐다(HEAD는 `hostMode=0 roomSceneKey=Scenes/T_RoomB`) — 이전 세션의 작업 상태이므로 **HEAD로 되돌리지 않고 발견 시점 상태로 복원**했다.
