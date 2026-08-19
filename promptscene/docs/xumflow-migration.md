@@ -738,6 +738,9 @@ XRCollab `/scaffold-content`은 "프롬프트→Ruler 템플릿으로 FEATURE �
 | T8 | **입력 포커스** | 에디터 2개 중 활성창만 실입력을 받는다 | 이번 세션은 **실입력을 아예 안 썼다**(A=MCP 트랜스폼/RPC, B=파일 명령) → 함정 자체를 우회. 실 키보드 2인 조작은 미검증 |
 | T9 | **디스크·시간** | 클론 생성 = Library+Packages 복사, 여유 885G→882G(**약 3 GB**), 소요 1분 미만. 클론 콜드 오픈(컴파일 포함) 약 5분 | — |
 
+**→ 이 절차는 이후 `/multiplayer-check` 스킬로 동결됐다**(`promptscene/skills/multiplayer-check/` — 하네스 2종 +
+`mp_verify.cs`). `/add-component` 는 Phase 5 옵션 게이트에서 물어보고 Phase 7에서 참조 호출한다.
+
 **트랩 J/K(MST 소산) 실측:** studio QuickTest는 MST를 안 쓰고 FishNet 직결이라 **토큰 개념 자체가 없다 → 트랩 K(콜드스타트 토큰 만료)는 구조적 부재 확인.** 트랩 J(게스트 조인 flakiness)는 **1게스트 3회 조인 3회 성공**(중간 1회 실패는 T3 = MCP 도메인 리로드, 넷코드 아님) — **3인+ 동시 조인은 미실측.** → `/multiplayer-check` studio 편 SSOT 씨앗.
 
 ### 17.6 정직 계약 (이 세션 증명 범위)
