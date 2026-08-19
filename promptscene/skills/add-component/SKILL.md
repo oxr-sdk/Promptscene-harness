@@ -12,11 +12,13 @@ description: >
   wire a human-written script; (4) places it under the right layer (FEATURES / COMPOSITIONS), wires its scene-embed
   prefab fields (§3b) and registers any new network prefab (C1); (5) QuickTest-proves §5 (FEATURE self-registers +
   SetEnabled exception-free + Meta valid ; COMPOSITION scene-resident + NOT registered) AND §6.5 (avatar still
-  spawns = SYSTEMS unbroken); (6) optionally reference-calls /cross-platform-ui to lay a pointing UI, then ALWAYS
-  asks the human whether they want to drive it in the UI themselves (Phase 6 handoff — leaves the room in Play with
-  an operating recipe). It absorbed
+  spawns = SYSTEMS unbroken); (6) runs the **OPTION GATE** — one AskUserQuestion window asking whether to add a
+  pointing UI and whether to run a 2-client check, **skipped entirely when the user already declared their intent**
+  — then reference-calls /cross-platform-ui and /multiplayer-check accordingly; (7) ALWAYS asks the human whether
+  they want to drive it in the UI themselves (handoff — leaves the room in Play with an operating recipe).
+  So the shape is 컴포넌트 만들기 → UI 확인(옵션) → 네트워크·멀티 확인(옵션) → 사람 핸드오프. It absorbed
   scaffold-content's studio role (see the retrospective-B note). Reference-calls /assemble-room, /cross-platform-ui,
-  oxr-docs-routing — never duplicates their procedures. Use when the user wants to add a capability to a room, e.g.
+  /multiplayer-check, oxr-docs-routing — never duplicates their procedures. Use when the user wants to add a capability to a room, e.g.
   "룰러 붙여줘", "add a click-spawner to MyRoom", "/add-component a chat feature". Argument = the component request
   (natural language), optionally "... on <Room>".
 ---
@@ -99,7 +101,7 @@ reference-call **assemble-room (skeleton) + add-component (content)**.
   exception-free + `IsEnabled` tracks + `Meta` valid; **COMPOSITION** is scene-resident and did **not** leak into
   the registry; network prefabs spawn `IsSpawned=True` (spawn-once); SYSTEMS unbroken (avatar spawns); Error 0.
 - ❌ **Does NOT prove** the component *does what the prose intended*, nor that it looks good — behavioural
-  correctness and aesthetics need a human/vision loop, **so hand it to the human: Phase 6 is a mandatory ask, not a
+  correctness and aesthetics need a human/vision loop, **so hand it to the human: Phase 8 is a mandatory ask, not a
   disclaimer.** **Ray injection caveat:** the agent injects at the `SubmitExternalRay`/reflected-`OnClick` boundary,
   **not** a real OS pointer-event → raycast. **Out of scope:** 2-client parity (MPPM queue), real-device / XRI hand
   manipulation (human + simulator), Smart-Deploy.
@@ -227,13 +229,44 @@ Do **not** use `add_component.cs` / `verify_component.cs` — UnifiedXRMotion's 
    fidelity (behaviour is a human/vision loop; and if the bind target was the authored prefab, runtime-clone motion is
    still **unproven** until observed live).
 
-### Phase 5 (optional) — pointing UI (reference-call /cross-platform-ui)
-If the user wants to drive the component by pointing, **ask** which mode and reference-call
-`/cross-platform-ui <PC|PCSS|PCXR|Cross> on <Room>`. The HUD binds itself from the registry (one button per
-toggleable FEATURE) — no room hardcoding. ⚠ Real XRI manipulation is a **human** (simulator) judgment; the agent
-proves the onClick→SetEnabled path + `SubmitExternalRay` injection only.
+### Phase 5 — 옵션 게이트 (AskUserQuestion 한 창, 두 질문)
+§5가 PASS한 **직후**, 남은 두 검증(UI / 멀티)은 **사람이 고른다.** 만들기는 끝났고 여기서부터는 선택이다.
 
-### Phase 6 — 사람 루프 핸드오프 (MANDATORY ASK — before the report, not instead of it)
+**① 선행 선언이 있으면 묻지 않는다.** 사용자가 이미 의사를 밝혔으면 그대로 실행하고 창을 띄우지 않는다:
+- "UI까지 확인해줘", "멀티까지 봐줘", "2인으로도 확인" → 해당 단계 **YES로 확정**
+- "구조만", "검증은 됐고 붙이기만" → 해당 단계 **생략**
+- 한쪽만 말했으면 **말한 쪽만 확정하고, 나머지 한 질문만** 띄운다.
+
+**② 선언이 없으면 `AskUserQuestion` 으로 한 창에 두 질문**을 띄운다(두 번 끊지 않는다). UI 모드는 별도 질문으로
+쪼개지 말고 **선택지 자체에 넣는다**:
+
+| | 질문 | 선택지 |
+|---|---|---|
+| Q1 | **UI를 통해 사용자 검증을 하시겠습니까?** | `예 — 크로스플랫폼(Cross)` (권장, 기본) · `예 — PC 전용(PC)` · `예 — PC+XR(PCXR)` · `아니오` |
+| Q2 | **네트워크·멀티(2클라) 검증을 하시겠습니까?** | `예 — 2인 스폰(게이트 1)만` · `예 — 게이트 1 + 이 컴포넌트 파리티` (권장) · `아니오` |
+
+⚠ Q2 는 **답을 예측해서 미리 돌리지 않는다.** 2클라는 에디터를 하나 더 띄우는 일이라 사용자가 고르기 전에
+시작하면 되돌리기 어렵다. 그리고 **아니오도 정상 결과**다 — 리포트에 "사용자가 생략을 선택"으로 적는다.
+
+### Phase 6 (옵션, Q1=예) — pointing UI (reference-call /cross-platform-ui)
+Q1에서 고른 모드로 `/cross-platform-ui <PC|PCSS|PCXR|Cross> on <Room>` 를 **참조 호출**. HUD는 레지스트리에서
+스스로 바인딩한다(토글 가능한 FEATURE 하나당 버튼 하나) — 룸 하드코딩 없음. ⚠ 실 XRI 조작 판정은 **사람**
+(시뮬레이터) 몫이다. 에이전트가 증명하는 건 onClick→SetEnabled 경로 + `SubmitExternalRay` 주입까지다.
+
+### Phase 7 (옵션, Q2=예) — 네트워크·멀티 검증 (reference-call /multiplayer-check)
+`/multiplayer-check <이 컴포넌트> on <Room>` 를 **참조 호출**. 절차·함정은 그 스킬이 갖는다 — 여기서 되풀이하지
+않는다. 알아야 할 접점만:
+- **클론은 1회성**(`c:\J_0\XumFlow-studio_clone_0`). 있으면 재사용하므로 두 번째부터는 에디터 하나 더 띄우는
+  비용뿐이다. 없으면 그 스킬이 만든다(ParrelSync, **매니페스트 무수정**).
+- **순서 고정 — 게이트 1(2인 스폰 4신호)이 FAIL이면 인프라 문제이므로 컴포넌트 파리티로 넘어가지 않는다**(오진 방지).
+- **대상이 룸에 배치돼 있어야 파리티를 볼 수 있다.** 방금 이 스킬이 배치했으니 정상적으로 충족된다.
+- **부분 PASS를 그대로 받는다** — 일부 신호만 서도 실패가 아니고, 어디서 멈췄는지가 산출물이다.
+- 끝나면 **A는 다시 단독 host 상태**로 돌아온다(B 종료). 그 뒤에 Phase 8을 진행한다.
+
+⚠ 이 단계가 증명하지 **못하는 것**을 리포트에 그대로 옮긴다: **실 키보드 2인 조작**(에디터 2개 중 활성창만
+입력을 받아, 그 절차는 A=MCP·B=파일명령으로 함정을 *우회*한다) · 3인+ · 실기기 · 배포.
+
+### Phase 8 — 사람 루프 핸드오프 (MANDATORY ASK — before the report, not instead of it)
 §5 PASS proves **structure**; it never proves the thing *feels* right. Behaviour + aesthetics are the human's call, so
 the procedure must **hand the live room over**, not merely disclaim it. Ask, verbatim in the user's language:
 **"직접 UI로 테스트해보시겠어요?"** — three options, **default A**:
@@ -265,7 +298,9 @@ Teardown / a scene reload first. (2) Never `scene-save QuickStart.unity` in eith
 | A (UXRM) | `uxrm-describe-scene`: the placed `RetargetSystem` has `MotionAvatarPath` **non-null** (bound) | uxrm-describe-scene |
 | B (UXRM) | `uxrm-bind-avatar` returned `Success=true`, `Warnings` empty | bind-avatar result |
 | C (UXRM) | §5 A/B/C registry checks **N/A** (never self-registers); SYSTEMS unbroken + Error 0 still required | QuickTest §6.5 |
-| H1 | **Phase 6 asked** ("직접 UI로 테스트해보시겠어요?") and the chosen option honoured (A = left in Play + recipe) | the report itself |
+| H1 | **Phase 8 asked** ("직접 UI로 테스트해보시겠어요?") and the chosen option honoured (A = left in Play + recipe) | the report itself |
+| H3 | **Phase 5 옵션 게이트 처리됨** — 선행 선언이 있었으면 그대로 따랐고, 없었으면 AskUserQuestion 한 창으로 물었다. 두 답(UI / 멀티)이 리포트에 **각각** 적혀 있다("아니오"도 결과다) | the report itself |
+| H4 | (Q2=예일 때) `/multiplayer-check` 결과가 **부분 PASS까지 그대로** 실려 있고, 실입력 2인·3인+·실기기가 밖이라고 재기술됨 | the report itself |
 | H2 | Every ⚠ 코드-대체 slice is **labelled as a substitute** in the report + has a 추천사항 line | the report itself |
 | — | `=== §5/§6.5 ADD-COMPONENT VERDICT (<KIND>): PASS ===` | result file (FEATURE/COMPOSITION) |
 
@@ -275,7 +310,7 @@ IRoomContent (make it a plain MonoBehaviour). Avatar missing but room loaded →
 spawner — build-studio-room §3). `_wired=False` for XRI → read it one tick later (§11.4).
 
 ## Cleanup
-Exit Play if running — **unless Phase 6 option A was chosen** (then leave Play up and say so). Delete
+Exit Play if running — **unless Phase 8 option A was chosen** (then leave Play up and say so). Delete
 `Temp/ps_addcomp_*.txt`. Leave the placed component, wired room, any authored `.cs` / prefab, and C1 registration in
 place.
 
@@ -289,7 +324,11 @@ and deploy are out of scope.** Then, always:
   recommendations, not blockers.
 - **잔여 개척 청구서** — only the slices that landed on ⛔(a) human aesthetics / (b) owner sign-off / (c) absent
   infra, each with which gate and what would open it. Record it under `promptscene/docs/<topic>-invoice.md`.
-- **Phase 6 결과** — which handoff option the user picked, and (for A/B) the 조작 레시피 you handed over plus the
+- **옵션 게이트 결과(Phase 5)** — UI / 멀티 각각 **예·아니오와 그 근거**(사용자 선행 선언이었는지, 창에서
+  골랐는지). 생략도 결과로 적는다 — 안 물어본 것과 사용자가 거절한 것은 다르다.
+- **멀티 검증 결과(Phase 7, 돌렸다면)** — 게이트 1 4신호 + 컴포넌트 파리티를 **부분 PASS 포함** 그대로.
+  경계 재기술: 같은 머신·에디터 2인·데스크톱까지이고 **실입력 2인 조작·3인+·실기기·배포는 밖**.
+- **Phase 8 결과** — which handoff option the user picked, and (for A/B) the 조작 레시피 you handed over plus the
   "QuickStart 저장 금지" warning.
 
 A report with a 청구서 and **no build** is only valid when *every* slice hit ⛔(a)/(b)/(c).
