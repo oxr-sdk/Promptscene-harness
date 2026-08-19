@@ -28,10 +28,11 @@ Claude Code 플러그인(이 레포 = `promptscene-harness`).
 | 것 | 위치 | 정체 | 비고 |
 |---|---|---|---|
 | **이 레포 = 로컬 마켓플레이스** | `c:\J_0` | `.claude-plugin/marketplace.json` 루트 + 타깃 Unity 앱(XRCollabDemo) 동거 | git `main`. **여기서 세션을 열어야** 플러그인이 로드됨(→ §7 함정). |
-| **promptscene 플러그인** | `c:\J_0\promptscene` | 플러그인 본체(plugin.json/skills 4종/hooks+회귀 러너). install EBUSY 회피 위해 레포 루트에서 분리 | marketplace.json은 루트 `.claude-plugin/`에 잔류. 로드 방식은 §9 |
+| **promptscene 플러그인** | `c:\J_0\promptscene` | 플러그인 본체(plugin.json/skills **5종**/hooks+회귀 러너). install EBUSY 회피 위해 레포 루트에서 분리 | marketplace.json은 루트 `.claude-plugin/`에 잔류. 로드 방식은 §9 |
 | **XRCollabDemo** | `c:\J_0\XRCollabDemo` | 타깃 Unity 6 앱(`6000.3.11f1`), MCP 포트 **27826** | 런타임 코드가 사는 곳: `Assets/PromptScene/`. `Library/PackageCache`는 **읽기 전용**. |
 | **DeepChairProject** | `C:\Unity\DeepChairProject` | 기능 **레퍼런스** 소스(ruler/laser/memo 등), Unity `6000.1.7f1`, MCP **22863** | 앱레이어가 XRCollabDemo에 없어 **lift-and-shift 불가 → 계약 위에 클린 재구현**이 정석. |
 | **XumFlow (studio)** | `c:\J_0\XumFlow-studio` | 포트 **타깃** 후보(콘텐츠 저작 프로젝트), studio 브랜치 `@7ccd554`, Unity `6000.3.11f1`, MCP `ai-game-developer`@**21017** | gitignore `/XumFlow-studio/`. 환경 살아있음 실증(오픈·컴파일·§5 스폰). SSOT: [promptscene/docs/xumflow-migration.md](promptscene/docs/xumflow-migration.md) §7 |
+| **XumFlow studio 클론(B)** | `c:\J_0\XumFlow-studio_clone_0` | **2클라 검증용 2번째 에디터**(ParrelSync). `Assets`·`ProjectSettings`·`LocalPackages`=심링크(원본과 공유), `Library`·`Packages`=복사, `UserSettings`=독립 → MCP 포트가 갈린다(**25821**, 경로 SHA256) | 1회성 ≈3.5 GB. **MCP는 원본에만 붙인다.** gitignore `/XumFlow-studio_clone_*/`. 절차 = `/multiplayer-check` · build-studio-room §6.6 |
 | **XumFlow (runtime)** | `c:\J_0\XumFlow` | 다운로더/플레이어 빌드(runtime 브랜치 `@200a4a2`) | 대조·인용용 보존. gitignore `/XumFlow/` |
 
 > **XumFlow studio 트랙 상태(2026-07-23):** studio 클론 + 선행조건(codebook/XREAL 회수) + 에디터 오픈·컴파일 클린 + **§5 베이스라인 스폰 PASS(T_RoomB, 사용자 GUI)** + 우리 코드 자리 확정(`ContentLogic/App.HotUpdate.asmdef` = baked 경계) + **MCP 0.66.0 배선(Connected)**. **MCP 0.66.0 제어 증명 완료(2026-07-23 재시작 후 세션):** §5를 MCP로 재현 — `script-execute`로 play mode 진입→T_RoomB 로드→`Desktop(Clone)` 스폰+모션rig→exit. + **port-prep 3결정 확정**(Core=`ContentLogic/PromptScene`·별도 asmdef 불요 / 직렬화 지뢰 회피=프리팹 기본컴포넌트+씬임베드·런타임배선·데이터컨테이너 App.Bridges / 스킬 Smart-Deploy 재작성 스코프). **다음=Ruler 클린 재저작.** **핵심 규칙/함정(SSOT=xumflow-migration.md §7):** ①MCP 버전 ∝ 프로젝트 UXM 버전(studio UXM 1.8.5→MCP 0.66.0 / XRCollab UXM 1.8.1→0.76.3, 서버·포트 분리) ②MCP NuGet DLL은 UPM 비관리 → 버전 변경 시 클린 재설치(폴더 삭제 후 0.66.0 자동복원, 다운로드 중 과도기 CS 에러=행 아님) ③씬 로드 키=leaf 폴백 가능·`hostMode=true`라야 단일 에디터 아바타 스폰 ④XRCollab UXM URL 언핀 = 잠재 취약(재resolve 시 어댑터-MCP 충돌 재발). 길 A(구버전 MCP, UXM 무수정) 채택 — UXM 담당자에 versionDefine 완화 요청됨, 상류 수정 오면 최신 MCP 이전 재검토.
@@ -236,13 +237,14 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
 
 ## 9. 환경/툴 메모
 
-- **Unity/MCP:** XRCollabDemo `6000.3.11f1`(MCP 27826) / DeepChairProject `6000.1.7f1`(MCP 22863). 스킬 실행 전 대상 에디터의 `ai-game-developer` MCP가 **살아 있어야** 함.
+- **Unity/MCP:** XumFlow-studio `6000.3.11f1`(MCP **21017**) / XRCollabDemo `6000.3.11f1`(MCP 27826) / DeepChairProject `6000.1.7f1`(MCP 22863). ⚠ 이 MCP 플러그인의 포트는 고정이 아니라 **`SHA256(프로젝트 경로)` → 20000~29999** 이다(설정 없을 때). 그래서 studio 클론은 자동으로 25821을 잡는다 = **충돌 구조적 불가**. 스킬 실행 전 대상 에디터의 `ai-game-developer` MCP가 **살아 있어야** 함.
 - **script-execute:** Roslyn full-code 모드(className/methodName). 프로젝트 타입은 리플렉션(AppDomain 순회)으로 접근. `using UnityEditor.SceneManagement` 등 누락 주의, `Object`는 `UnityEngine.Object`로 명시.
 - **셸:** 기본 PowerShell(5.1) + Bash 툴(POSIX). 훅 스크립트는 bash.
 - **플러그인 설치:** `c:\J_0`를 **로컬 마켓플레이스**로 등록 후 `Install locally`로 `promptscene` 설치. **훅/스킬 변경은 재설치 + 세션 재시작해야 반영**된다(`/reload-plugins`만으로 훅이 안 잡힐 수 있음). 세션은 반드시 마켓플레이스 루트에서 시작(→ §7).
 - **플러그인 로드 방식:** local marketplace(`c:\J_0`) + `/plugin install promptscene@promptscene-harness`(Install locally). **훅 반영은 재설치 + 재시작 필요.**
 - **원격/private:** `oxr-sdk` 레포는 private — clone/fetch 시도 금지, 필요한 건 로컬 PackageCache에 있음.
-- **에이전트 레지스트리 함정:** 세션 도중 새로 만든 `.claude/agents/*.md`는 그 세션에서 `subagent_type`으로 **등록되지 않는다**(레지스트리는 세션 시작 시 로드). 새 서브에이전트를 쓰려면 **세션 재시작** 필요 — 훅/스킬 반영 규칙(재설치+재시작)과 동일. 임시 위임은 기존 등록 에이전트(`general-purpose` 등)에 규칙을 인라인해 처리. (2026-07-16 guard-probe 탐침에서 확인. 참고: PreToolUse 가드 훅은 서브에이전트 내부 도구 호출에도 fail-closed로 적용됨을 라이브 검증.)
+- **2클라(에디터 2개) 운용:** A=원본(MCP로 판정) / B=ParrelSync 클론(**MCP 없음** — 루트의 `.promptscene-status` 한 줄 파일로 상태를 읽고 `.promptscene-cmd` 한 줄로 조종한다). 클론 전용 파일은 반드시 **프로젝트 루트**에 — `Assets/`는 심링크라 원본까지 무장된다. ⚠ **클론 에디터를 끄면 원본의 `unity-mcp-server`가 같이 죽는다**(에디터 자체는 멀쩡, 자동 재기동 없음) → `Library/mcp-server/win-x64/unity-mcp-server.exe port=21017 plugin-timeout=10000 client-transport=streamableHttp authorization=none` 로 되살린다.
+- **에이전트·스킬 레지스트리 함정:** 세션 도중 새로 만든 `.claude/agents/*.md`(그리고 **새 스킬 `promptscene/skills/*/SKILL.md`도 동일**)는 그 세션에서 `subagent_type`/`/스킬명`으로 **등록되지 않는다**(레지스트리는 세션 시작 시 로드). 새 서브에이전트를 쓰려면 **세션 재시작** 필요 — 훅/스킬 반영 규칙(재설치+재시작)과 동일. 임시 위임은 기존 등록 에이전트(`general-purpose` 등)에 규칙을 인라인해 처리. (2026-07-16 guard-probe 탐침에서 확인. 참고: PreToolUse 가드 훅은 서브에이전트 내부 도구 호출에도 fail-closed로 적용됨을 라이브 검증.)
 
 ---
 
