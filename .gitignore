@@ -6,6 +6,7 @@
 
 # Unity project — same repo, studio branch (content-authoring / port target)
 /XumFlow-studio/
+/XumFlow-studio_clone_*/
 
 # Huge import log (161MB)
 /xrcollab_import.log
