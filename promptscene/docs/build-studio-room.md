@@ -130,6 +130,9 @@ FEATURE들을 게임 루프로 조율하는 **COMPOSITIONS 층**. FEATURE 이식
 ## 6.6 2클라 클론 절차 (ParrelSync — 겪은 것만, 2026-08-19)
 
 > studio에서 **에디터 2개로 2인**을 돌리는 절차. SSOT 상세·트랩표 = [xumflow-migration.md](xumflow-migration.md) §17.
+> **이 절을 감싼 스킬 = `/multiplayer-check`** (`promptscene/skills/multiplayer-check/`) — 하네스 소스와 A쪽
+> 판정 스크립트(`mp_verify.cs`)를 assets 로 들고 있고, `/add-component` 가 Phase 7에서 **옵션으로 참조 호출**한다.
+> 사람이 직접 돌릴 땐 아래 절차를 그대로 따르면 된다.
 > 전제: QuickTest는 MST가 아니라 **FishNet 직결 `localhost:7770`** (A=server, B=client).
 
 ### 6.6.1 한 번만 하는 준비
