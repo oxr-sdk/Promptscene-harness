@@ -30,13 +30,15 @@ namespace PromptScene.Harness
     [InitializeOnLoad]
     internal static class CloneHarness
     {
-        private const string ArmFileName = ".promptscene-autoplay";
-        private const string CmdFileName = ".promptscene-cmd";
-        private const string LogTag      = QuickTestRoleBridge.LogTag;
+        private const string ArmFileName    = ".promptscene-autoplay";
+        private const string CmdFileName    = ".promptscene-cmd";
+        private const string StatusFileName = ".promptscene-status";
+        private const string LogTag         = QuickTestRoleBridge.LogTag;
 
         private static double _nextProbe;
         private static double _nextCmdPoll;
         private static bool   _playRequested;
+        private static string _lastProbe = "";
 
         private static string ProjectRoot => Path.GetDirectoryName(Application.dataPath);
 
@@ -47,6 +49,12 @@ namespace PromptScene.Harness
         static CloneHarness()
         {
             if (!IsCloneRole) return;   // 원본: 구독조차 하지 않는다
+
+            // 로그 1줄당 스택트레이스 ~9줄이 붙어 -logFile 이 순식간에 수십 MB가 된다.
+            // 그러면 B 상태를 읽을 때마다 커지는 파일을 훑어야 한다(= 판정 비용이 세션 길이에 비례).
+            // Log 레벨만 끈다 — Warning/Error/Exception 의 스택은 진단에 필요하므로 남긴다. 클론 한정.
+            Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
+
             EditorApplication.update += Tick;
             Debug.Log(LogTag + " clone-harness armed root=" + ProjectRoot +
                       " autoplay=" + File.Exists(Path.Combine(ProjectRoot, ArmFileName)));
@@ -178,7 +186,37 @@ namespace PromptScene.Harness
             }
 
             sb.Append("| chatLog=" + ChatLogSnapshot());
-            Debug.Log(sb.ToString());
+            string line = sb.ToString();
+
+            // ① 현재 상태 = 덮어쓰는 파일 한 개. 읽는 쪽은 커지는 로그를 훑지 않고 이 파일만 본다(O(1)).
+            try { File.WriteAllText(Path.Combine(ProjectRoot, StatusFileName), line, Encoding.UTF8); }
+            catch { /* 읽는 중 충돌 — 다음 틱에 다시 쓴다 */ }
+
+            // ② 로그에는 "바뀐 것"만 남긴다. 1Hz 소방호스가 아니라 사건 기록이 되도록.
+            //    (cmd 로 강제 호출한 probe 는 항상 남긴다 — 물어봤으면 답이 로그에도 있어야 한다)
+            if (why == "cmd" || StripVolatile(line) != StripVolatile(_lastProbe))
+            {
+                _lastProbe = line;
+                Debug.Log(line);
+            }
+        }
+
+        /// <summary>좌표 흔들림 같은 잡음으로 "변화"가 매 틱 발생하지 않도록 위치는 비교에서 뺀다.</summary>
+        private static string StripVolatile(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            var sb = new StringBuilder(s.Length);
+            int i = 0;
+            while (i < s.Length)
+            {
+                int p = s.IndexOf("pos=", i, StringComparison.Ordinal);
+                if (p < 0) { sb.Append(s, i, s.Length - i); break; }
+                sb.Append(s, i, p - i);
+                int e = s.IndexOf(' ', p);
+                if (e < 0) break;
+                i = e;
+            }
+            return sb.ToString();
         }
 
         private static string ChatLogSnapshot()
