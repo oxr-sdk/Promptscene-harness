@@ -154,8 +154,10 @@ FEATURE들을 게임 루프로 조율하는 **COMPOSITIONS 층**. FEATURE 이식
 3. **A를 Play** — host로 띄우고 `IsServerStarted` 와 자기 아바타를 확인한다.
 4. **B 무장** — 클론 **루트**에 `.promptscene-autoplay` 생성 → `CloneHarness`가 Play에 진입하고 브리지가 client로 뒤집는다.
    로그에서 이 두 줄을 확인: `role-detect role='client'` / `apply role=client applied=True startAsServer:True->false`.
-5. **판정** — B의 1초 프로브 한 줄에 전부 들어 있다:
+5. **판정** — 프로브 한 줄에 전부 들어 있다:
    `probe[tick] srv=… cli=… cid=… scenes=[…] nobs=N | id=<objId> <name> owner=<IsOwner> ownerCid=<n> pos=… | chatLog=…`
+   **현재 상태는 클론 루트의 `.promptscene-status` 를 읽는다**(1초마다 덮어쓰기, 항상 한 줄) — 커지는 로그를 훑을 필요가 없다. 상태 1회 확인 = 파일 1개 읽기.
+   ⚠ **로그를 상태 조회에 쓰지 말 것.** `-logFile` 은 append-only라 세션이 길어질수록 읽는 비용이 비례해 커진다(초기 구현은 1초마다 스택트레이스까지 찍어 **13 MB / 175k줄**까지 갔다). 지금 로그는 ① Log 레벨 스택트레이스 off ② **상태가 바뀔 때만** 기록(+`cmd probe` 는 항상) 이라 사건 기록에 가깝다 — 시계열·사후 추적용으로 쓴다.
 6. **B 조종** — 클론 **루트**에 `.promptscene-cmd` 파일로 한 줄 명령(소비 후 자동 삭제):
    `probe` / `chat <문구>` / `move <dx> <dy> <dz>` / `stop` / `quit`
    ⛔ **`Assets/` 안에 두면 안 된다** — 심링크라 원본까지 무장·조종된다.
