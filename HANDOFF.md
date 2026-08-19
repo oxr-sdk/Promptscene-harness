@@ -204,6 +204,14 @@ FEATURES 층만 바뀌고, 토대는 검증된 절차로 얼려 스킬화할 수
   **⛔ Grab 핸드오버 / 과녁→점수 = 미실행. 사유가 인프라가 아니다 —** 선행 정찰에서 **`PromptSceneRoom_1.unity`가 디스크에 없음**을 발견(§9~§14가 전부 그 룸 위에서 증명됐는데, 현재 씬은 `AssembleRoom/QuickRoom/QuickStart/T_RoomA/T_RoomB` 5개뿐, `AddCompProof_1`도 없음). **코드·프리팹은 전부 생존**이고 `AssembleRoom`엔 RoomCore·HUD·ChairSit·Chat만 있다(GUID 대조 실측). 즉 Grab/Target/Score/Match/Ruler는 **어느 룸에도 안 얹혀 있다** → 배치는 `/add-component` 작업이라 검증 세션 범위 밖으로 두고 보고.
   **신규 트랩 9종**(심링크 공유 / MCP 포트 해시 / **클론 MCP NuGet 재복원이 Play를 끊음** / **클론 종료가 원본 MCP 서버를 죽임** / 클론이 원본 ILPP 러너 kill / ParrelSync가 공유 Assets에 자산 기록 / §7② NuGet DLL은 실제로 무사 / 입력 포커스는 우회됨 / 비용) → §7 요약 + migration §17.5. **트랩 J/K:** MST가 없어 **토큰 개념 자체가 없음 = K 구조적 부재**, J는 1게스트 3/3 성공(**3인+ 미실측**) → `/multiplayer-check` studio 편 씨앗.
   **원상복구:** `QuickStart.unity` 세션 시작 md5로 복귀, 플레이모드 아님, 클론 종료·무장 해제. ⚠ 그 파일은 **세션 시작 시점부터 이미** HEAD와 달랐다(이전 세션 작업 상태) → HEAD로 되돌리지 않고 발견 시점으로 복원.
+  **⭐ 후속 동결(같은 세션):** 절차를 **`/multiplayer-check` 스킬**로 굳혔다(`promptscene/skills/multiplayer-check/`
+  — 하네스 2종 + A쪽 판정 `mp_verify.cs`). 그리고 **`/add-component` 를 "컴포넌트 만들기 → UI 확인(옵션) →
+  네트워크·멀티 확인(옵션) → 사람 핸드오프"** 형태로 확장: **Phase 5 옵션 게이트**가 `AskUserQuestion`
+  **한 창에 두 질문**(UI 검증? / 멀티 검증?)을 띄우되, **사용자가 선행 선언을 했으면 묻지 않는다.**
+  UI 모드는 선택지 안에 넣어 창을 한 번만 끊는다. Phase 6=UI(`/cross-platform-ui`), Phase 7=멀티
+  (`/multiplayer-check`), Phase 8=사람 핸드오프(기존 Phase 6). 에이전트 `tools` 에 **`AskUserQuestion` 추가**
+  (없어서 애초에 물어볼 수 없는 상태였다). ⚠ **판정 채널 최적화도 함께** — B 상태를 `.promptscene-status`
+  (덮어쓰기 한 줄)로 읽게 바꿔 반복 검증 비용을 O(로그 크기)에서 O(1)로 낮췄다(초기 로그가 13 MB/175k줄까지 갔다).
   **다음 = ①`/add-component`로 `AssembleRoom`(또는 새 룸)에 Grab·TargetProps·ScoreHud·Match 배치 → 남은 파리티 2종 집행 ②클론에서 MCP 비활성(트랩 ②③ 근본 대응) ③실 키보드 2인 조작·3인+.** SSOT [xumflow-migration.md](promptscene/docs/xumflow-migration.md) **§17** · 절차 [build-studio-room.md](promptscene/docs/build-studio-room.md) **§6.6**.
 0zf. ✅ **셸 3차 — 유리 방향 완성 + 대비 게이트 색공간 교정. `§5/§6 CROSS-PLATFORM-UI VERDICT: PASS`(전 게이트 통과, 세 세션 만에 처음 · 2026-08-12~13).**
   **디자인(오너 지시 전부 반영, 라이브 실증):** `Film` .60→.30→**.18**(더 투명) · `FilmHover` **.28** · `RimW` 2→**3** · 링 잉크 흰 α.55 → **중간 톤 `#7A8394` α.90**(환경 대응) · 링 프로파일 단조감소 → **미러 2로브**(`RimLobePower`·`RimMirror`) · 원판 안 아이콘 **흰색 채움**(Material Symbols `FILL`=1 재베이크) · 라벨 **1px 헤일로**로 1.65:1 → **11.80:1**. 값·산술의 SSOT는 **`HudTheme.cs` 헤더**, 절차·함정은 **[build-studio-room.md](promptscene/docs/build-studio-room.md) §5.1**.
