@@ -127,6 +127,49 @@ FEATURE들을 게임 루프로 조율하는 **COMPOSITIONS 층**. FEATURE 이식
 
 ---
 
+## 6.6 2클라 클론 절차 (ParrelSync — 겪은 것만, 2026-08-19)
+
+> studio에서 **에디터 2개로 2인**을 돌리는 절차. SSOT 상세·트랩표 = [xumflow-migration.md](xumflow-migration.md) §17.
+> 전제: QuickTest는 MST가 아니라 **FishNet 직결 `localhost:7770`** (A=server, B=client).
+
+### 6.6.1 한 번만 하는 준비
+
+1. **ParrelSync 1.5.3 도입 — `.unitypackage`를 풀어 `Assets/ThirdParty/ParrelSync/` 로 배치.**
+   ⛔ UPM git URL로 넣지 말 것 = `Packages/manifest.json` 수정이 된다. `.unitypackage`는 tar.gz라 각 엔트리의 `pathname`/`asset`/`asset.meta`를 재조립하면 **GUID를 보존한 채 원하는 경로로** 옮길 수 있다.
+   확인: 컴파일 0 · `ParrelSync` asmdef 타입 적재 · 메뉴 `ParrelSync/Clones Manager` 노출 · `ClonesManager.IsClone()==false`(원본).
+2. **역할 브리지: `Assets/PromptScene/Harness/Editor/`** — 소스 미러 = [assets/two-client-harness/](assets/two-client-harness/)(studio는 gitignore 대상이라 레포엔 미러만 있다)
+   - `QuickTestRoleBridge.cs` — 클론이면 런타임에 `startAsServer/hostMode`를 `false`로 덮는다.
+   - `CloneHarness.cs` — 클론 전용 자동 Play · 파일 명령 채널 · 1초 프로브 로그.
+   - ⚠ **여기는 `Editor` 폴더이고 asmdef가 없어 `Assembly-CSharp-Editor`에 들어간다.** 이게 필수다 — `QuickTestStarter`(`Assembly-CSharp`)와 `ParrelSync`(Editor asmdef)를 동시에 볼 수 있는 유일한 자리이고, `App.HotUpdate`(hot-update DLL)를 오염시키지 않는다.
+3. **클론 생성:** `ParrelSync/Clones Manager` 창, 또는 코드로 `ClonesManager.CreateCloneFromCurrent()`.
+   MCP에서 부를 땐 **`EditorApplication.delayCall` 로 감싸라** — 복사가 동기라 MCP 요청이 타임아웃난다. 완료 판정은 `<프로젝트>_clone_0/.clone` 파일 존재로.
+   비용 실측: 약 **3 GB**, 1분 미만(Library·Packages 복사).
+
+### 6.6.2 매 세션 절차 (순서가 중요)
+
+1. **A 준비** — `QuickStart` 의 `Starter` 에 `startAsServer✅ + hostMode✅ + roomSceneKey=<룸>` 을 넣고 **씬을 저장**한다.
+   ⚠ 저장해야 한다. `playModeStartScene` 이 걸려 있으면 Play는 **디스크의 씬 에셋**을 로드하므로 미저장 편집은 날아간다(기존 "roomSceneKey가 되돌아간다" 증상의 정체).
+2. **B 실행** — `Unity.exe -projectPath <clone> -logFile <경로>`. **`-logFile` 필수** — B 판정은 전부 이 로그로 한다.
+   ⚠ **무장하지 말고 먼저 띄운다.** 콜드 오픈+컴파일에 약 5분이 걸리고, 그동안 A가 host로 떠 있어야 한다(QuickTest 클라는 **재시도가 없다** — 한 번 실패하면 끝).
+3. **A를 Play** — host로 띄우고 `IsServerStarted` 와 자기 아바타를 확인한다.
+4. **B 무장** — 클론 **루트**에 `.promptscene-autoplay` 생성 → `CloneHarness`가 Play에 진입하고 브리지가 client로 뒤집는다.
+   로그에서 이 두 줄을 확인: `role-detect role='client'` / `apply role=client applied=True startAsServer:True->false`.
+5. **판정** — B의 1초 프로브 한 줄에 전부 들어 있다:
+   `probe[tick] srv=… cli=… cid=… scenes=[…] nobs=N | id=<objId> <name> owner=<IsOwner> ownerCid=<n> pos=… | chatLog=…`
+6. **B 조종** — 클론 **루트**에 `.promptscene-cmd` 파일로 한 줄 명령(소비 후 자동 삭제):
+   `probe` / `chat <문구>` / `move <dx> <dy> <dz>` / `stop` / `quit`
+   ⛔ **`Assets/` 안에 두면 안 된다** — 심링크라 원본까지 무장·조종된다.
+7. **원상복구** — B `quit` → 무장 파일 삭제 → A Play 종료 → `QuickStart` 값 복원·저장.
+
+### 6.6.3 이 절차가 우회하는 것 / 반드시 아는 함정
+
+- **입력 포커스 함정을 아예 안 만난다.** 에디터 2개 중 활성창만 실입력을 받지만, 이 절차는 A를 MCP로, B를 파일 명령으로 몬다. 대신 **실 키보드 2인 조작은 증명되지 않는다.**
+- **심링크 = 씬·설정·소스 공유.** "B만 다른 씬"은 불가능하고, 공유 Assets를 편집하면 **양쪽이 같이 재컴파일**된다(B가 Play 중이면 끊긴다).
+- ⛔ **클론의 MCP가 시작 몇 분 뒤 NuGet 재복원 → AssetDatabase refresh → 도메인 리로드**로 B의 Play를 끊는다. 조인 실패를 넷코드 탓하기 전에 B 로그에서 `[Unity-MCP DependencyResolver] Restoring` 을 찾을 것. **클론에서 MCP를 끄는 게 근본 대응.**
+- ⛔ **클론 에디터를 종료하면 원본의 `unity-mcp-server` 프로세스가 같이 죽는다**(에디터 자체는 멀쩡, 자동 재기동 없음). 복구:
+  `Library/mcp-server/win-x64/unity-mcp-server.exe port=21017 plugin-timeout=10000 client-transport=streamableHttp authorization=none`
+- **MCP 포트 충돌은 없다** — 포트는 `SHA256(프로젝트 경로)`이고 `UserSettings/`는 클론에 복사되지 않는다(원본 21017 / 클론 25821).
+
 ## 7. 검증 범위 / 정직 계약
 
 - ✅ **증명(단일 에디터 host, MCP + 사람 GUI):** 룸 조립(길1)·RoomCore·Ruler(§5)·5층 구조·SceneId 재부모 보존·World Space UI **데스크톱 마우스**(사람) + **XR 컨트롤러 sim**(사람: UI 버튼 클릭 + 바닥 측정).
@@ -137,4 +180,4 @@ FEATURE들을 게임 루프로 조율하는 **COMPOSITIONS 층**. FEATURE 이식
   - poke로 바닥 측정(현재 near-far 레이만).
   - 번들 한글 폰트(현재 OS 동적 폰트 = 데스크톱만).
   - **배포(Smart Deploy / Build & Package / Bundle Uploader) 전체 = 미경험 → `build-studio-deploy.md` 후속.**
-  - 2인(QuickTest 에디터 2개) / 2클라 파리티 = studio 미경험(다음 단계). **토폴로지 정찰(xumflow-migration §10.3):** QuickTest = MST 아닌 **FishNet 직접연결 `localhost:7770`**(서버=startAsServer✅, 클라=startAsServer❌). 2클라 = host 에디터 A + 별도 프로세스 B 1개면 성립하나 **B 생성 수단 부재**(ParrelSync·MPPM 미설치, 경량 스탠드얼론 빌드 없음 → Smart-Deploy 미경험). 착수 전 MPPM 추가 vs 클론 vs 빌드 결정 필요. **일괄 대기 큐:** Chat 양방향 · Grab 핸드오버 · **과녁/점수 동기 파리티(§6.5 COMPOSITION — 별도 클라 B가 같은 서버권위 스코어보드 수신)**.
+  - 2인(QuickTest 에디터 2개) = ✅ **성립(2026-08-19, §6.6)** — ParrelSync 클론 + 역할 브리지로 **빈 룸 2인 스폰 4신호 + Chat 양방향 4신호 PASS**(migration §17). **남은 파리티:** Grab 핸드오버 · 과녁/점수 동기 = 해당 FEATURE가 현존 룸에 미배치라 **미실행**(인프라 아님). **실 키보드 입력 2인 조작 · 3인+ 는 여전히 미증명.**
